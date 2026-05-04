@@ -1,0 +1,144 @@
+import React, { useEffect, useState } from 'react';
+import {
+    Box,
+    TextField,
+    InputAdornment,
+    Grid,
+    List,
+    ListItem,
+    ListItemText,
+    Paper,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchActiveCustomer } from '../features/customers/customerSlice';
+
+const CustomerSearch = ({ onCustomerSelect, type = "sender" }) => {
+    const dispatch = useDispatch();
+    const { list: customerList } = useSelector((state) => state.customers);
+    const [filteredCustomers, setFilteredCustomers] = useState([]);
+    const [notFound, setNotFound] = useState(false);
+
+    useEffect(() => {
+        dispatch(fetchActiveCustomer());
+    }, [dispatch]);
+
+    const formik = useFormik({
+        initialValues: {
+            customerSearch: '',
+        },
+        validationSchema: Yup.object({
+            customerSearch: Yup.string().required('Required'),
+        }),
+        onSubmit: () => { },
+    });
+
+    const { values, touched, errors, handleChange, handleBlur, setFieldValue } = formik;
+
+    // 🔍 Live filter logic - FIXED VERSION
+    const handleInputChange = (e) => {
+        handleChange(e);
+        const search = e.target.value.trim().toLowerCase().replace(/\s+/g, ' ');
+
+        if (search.length === 0) {
+            setFilteredCustomers([]);
+            setNotFound(false);
+            if (onCustomerSelect) onCustomerSelect(null); // Clear selection
+            return;
+        }
+
+        const matches = customerList.filter((customer) => {
+            // Safely handle potentially undefined properties
+            const name = customer.name?.toLowerCase().replace(/\s+/g, ' ') || '';
+
+            return (
+                name.includes(search)
+            );
+        });
+
+        if (matches.length > 0) {
+            setFilteredCustomers(matches);
+            setNotFound(false);
+        } else {
+            setFilteredCustomers([]);
+            setNotFound(true);
+        }
+    };
+
+    const handleSelectCustomer = (customer) => {
+        setFieldValue('customerSearch', customer.name || '');
+        setFilteredCustomers([]);
+        setNotFound(false);
+        if (onCustomerSelect) onCustomerSelect(customer);
+    };
+
+    const handleClearSearch = () => {
+        setFieldValue('customerSearch', '');
+        setFilteredCustomers([]);
+        setNotFound(false);
+        if (onCustomerSelect) onCustomerSelect(null);
+    };
+
+    return (
+        <Box position="relative">
+            <Grid container spacing={2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                        fullWidth
+                        label={`Search ${type === 'sender' ? 'Sender' : 'Receiver'} Customer (by Name )`}
+                        name="customerSearch"
+                        value={values.customerSearch}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        error={touched.customerSearch && Boolean(errors.customerSearch)}
+                        helperText={
+                            (touched.customerSearch && errors.customerSearch) ||
+                            (notFound && 'Customer not found')
+                        }
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+
+                    {/* 🔽 Match Suggestions */}
+                    {filteredCustomers.length > 0 && (
+                        <Paper
+                            elevation={3}
+                            style={{
+                                position: 'absolute',
+                                zIndex: 10,
+                                width: '100%',
+                                maxHeight: 200,
+                                overflowY: 'auto',
+                                marginTop: 4,
+                            }}
+                        >
+                            <List dense>
+                                {filteredCustomers.map((customer) => (
+                                    <ListItem
+                                        button
+                                        key={customer.customerId}
+                                        onClick={() => handleSelectCustomer(customer)}
+                                    >
+                                        <ListItemText
+                                            primary={customer.name || 'Unnamed Customer'}
+                                            secondary={`${customer.contactNumber || 'No contact'} | ${customer.emailId || 'No email'}`}
+                                        />
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </Paper>
+                    )}
+                </Grid>
+            </Grid>
+        </Box>
+    );
+};
+
+export default CustomerSearch;

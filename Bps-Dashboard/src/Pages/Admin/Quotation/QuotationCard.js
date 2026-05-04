@@ -1,0 +1,1108 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  TableSortLabel,
+  TablePagination,
+  TextField,
+  InputAdornment,
+  useTheme,
+  Button,
+  Tooltip,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogActions, // Added Checkbox
+} from "@mui/material";
+import {
+  CancelScheduleSend as CancelScheduleSendIcon,
+  AccountBalanceWallet as AccountBalanceWalletIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  MoreVert as MoreVertIcon,
+  Search as SearchIcon,
+  Book as BookOnlineIcon,
+  LocalShipping as LocalShippingIcon,
+} from "@mui/icons-material";
+import AddIcon from "@mui/icons-material/Add";
+import { useSelector, useDispatch } from "react-redux";
+import {
+  fetchBookingRequest,
+  fetchActiveBooking,
+  fetchCancelledBooking,
+  deleteBooking,
+  sendBookingEmail,
+  revenueList,
+  viewBookingById,
+  clearViewedBooking,
+  uploadQuotationPdf,
+  cancelQuotation,
+  fetchDeletedQuotations
+} from "../../../features/quotation/quotationSlice";
+import { finalizeDelivery } from "../../../features/delivery/deliverySlice";
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { Snackbar, Alert } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import QSlipModal from "../../../Components/QSlipModal";
+import UploadIcon from '@mui/icons-material/Upload';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
+
+
+function descendingComparator(a, b, orderBy) {
+
+  // 🔥 DATE SORT
+  if (orderBy === "quotationDate") {
+    return new Date(b.quotationDate) - new Date(a.quotationDate);
+  }
+
+  // 🔥 BILTY SORT (IMPORTANT)
+  if (orderBy === "biltyNo") {
+    return (b.biltyNo || "").localeCompare(a.biltyNo || "", undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  }
+
+  // 🔥 DEFAULT
+  if (b[orderBy] < a[orderBy]) return -1;
+  if (b[orderBy] > a[orderBy]) return 1;
+  return 0;
+}
+
+function getComparator(order, orderBy) {
+  return order === "desc"
+    ? (a, b) => descendingComparator(a, b, orderBy)
+    : (a, b) => -descendingComparator(a, b, orderBy);
+}
+
+function stableSort(array, comparator) {
+  const stabilized = array.map((el, index) => [el, index]);
+  stabilized.sort((a, b) => {
+    const order = comparator(a[0], b[0]);
+    return order !== 0 ? order : a[1] - b[1];
+  });
+  return stabilized.map((el) => el[0]);
+}
+
+const formatDateToDDMMYYYY = (dateString) => {
+  if (!dateString) return "-";
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      if (typeof dateString === "string" && dateString.includes("-")) {
+        return dateString;
+      }
+      return "-";
+    }
+
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "-";
+  }
+};
+
+
+const headCells = [
+  { id: "active", label: "Finalize", sortable: false, width: 80 }, // Added for checkbox
+  { id: "sno", label: "S.No", sortable: false, width: 50 },
+  { id: "biltyNo", label: "Bilty No", sortable: true, width: 130 },
+  { id: "bookingId", label: "Order By", sortable: true, width: 120 },
+  { id: "quotationDate", label: "Date", sortable: true, width: 100 },
+  { id: "senderName", label: "Name", sortable: true, width: 120 },
+  { id: "pickupCity", label: "Pick Up", sortable: false, width: 80 },
+  { id: "receiverName", label: "Name", sortable: false, width: 120 },
+  { id: "dropCity", label: "Drop", sortable: false, width: 80 },
+  { id: "contact", label: "Contact", sortable: false, width: 120 },
+  { id: "cancelReason", label: "Cancel Reason", sortable: false, width: 150 },
+  { id: "action", label: "Action", sortable: false, width: 320 },
+];
+
+const revenueHeadCells = [
+  { id: "sno", label: "S.No", sortable: false, width: 50 },
+  { id: "bookingId", label: "Booking ID", sortable: true, width: 120 },
+  { id: "date", label: "Date", sortable: true, width: 100 },
+  { id: "pickup", label: "Pick Up", sortable: false, width: 120 },
+  { id: "drop", label: "Drop", sortable: false, width: 80 },
+  { id: "revenue", label: "Revenue (in Rupees)", sortable: false, width: 120 },
+  { id: "action", label: "Action", sortable: false, width: 100 },
+];
+
+const QuotationCard = () => {
+  const theme = useTheme();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const [openWhatsappSnackbar, setOpenWhatsappSnackbar] = useState(false);
+  const [openEmailSnackbar, setOpenEmailSnackbar] = useState(false);
+  const cardColor = "#0155a5";
+  const cardLightColor = "#e6f0fa";
+  const [localModalOpen, setLocalModalOpen] = useState(false);
+  const [activeCard, setActiveCard] = useState("request");
+  const [order, setOrder] = useState("desc");          // ✅ latest first
+  const [orderBy, setOrderBy] = useState("biltyNo");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedList, setSelectedList] = useState("request");
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const fileInputRef = React.useRef(null);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [openUploadModal, setOpenUploadModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const { list: bookingList = [], revenueList: revenueData = [], requestCount, activeDeliveriesCount, cancelledDeliveriesCount, totalRevenue, uploadedPdfUrl, pdfUploadLoading } =
+    useSelector((state) => state.quotations);
+  const [openPdfPreview, setOpenPdfPreview] = useState(false);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
+  const [openPdfSnackbar, setOpenPdfSnackbar] = useState(false);
+  const [openPreviewModal, setOpenPreviewModal] = useState(false);
+  const [previewLink, setPreviewLink] = useState(null);
+
+  const booking = useSelector((state) => state.quotations.viewedBooking);
+
+  // Function to handle Checkbox toggle
+  const handleActiveChange = (orderId, checked) => {
+    if (!checked) {
+      alert("You cannot unfinalize a delivery.");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to finalize this quotation delivery?")) {
+      dispatch(finalizeDelivery(orderId))
+        .unwrap()
+        .then(() => {
+          alert("Quotation delivery finalized successfully!");
+          dispatch(fetchActiveBooking()); // refresh active quotations
+        })
+        .catch((error) => {
+          alert(`Failed to finalize quotation delivery: ${error}`);
+        });
+    }
+  };
+
+  useEffect(() => {
+    dispatch(fetchBookingRequest());
+    dispatch(fetchDeletedQuotations());
+    dispatch(fetchCancelledBooking());
+    dispatch(fetchActiveBooking());
+    dispatch(revenueList());
+  }, [dispatch])
+
+  useEffect(() => {
+    switch (selectedList) {
+      case "request":
+        dispatch(fetchBookingRequest());
+        break;
+      case "active":
+        dispatch(fetchActiveBooking());
+        break;
+      case "cancelled":
+        dispatch(fetchCancelledBooking());
+        break;
+      case "revenue":
+        dispatch(revenueList());
+        break;
+      default:
+        break;
+    }
+  }, [selectedList, dispatch]);
+
+  const handleAdd = () => {
+    navigate("/quotationform");
+  };
+
+  useEffect(() => {
+    setOrder("desc");
+    setOrderBy("biltyNo");
+  }, [selectedList]);
+
+  const isRevenueCardActive = activeCard === "revenue";
+  const displayHeadCells = isRevenueCardActive ? revenueHeadCells : headCells;
+
+  const handleCardClick = (type, route, cardId) => {
+    setActiveCard(cardId);
+    setSelectedList(type);
+    setActiveCard(type);
+    setPage(0);
+    if (route) navigate(route);
+  };
+
+
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === "asc";
+    setOrder(isAsc ? "desc" : "asc");
+    setOrderBy(property);
+  };
+
+  const handleCancel = (bookingId) => {
+    const reason = prompt("Enter cancel reason:");
+
+    if (!reason) {
+      alert("❗ Cancel reason required");
+      return;
+    }
+
+    const confirmCancel = window.confirm(
+      `Are you sure?\nReason: ${reason}`
+    );
+
+    if (!confirmCancel) return;
+
+    dispatch(cancelQuotation({ bookingId, reason }))
+      .unwrap()
+      .then(() => {
+        alert("✅ Cancelled successfully");
+        dispatch(fetchBookingRequest()); // refresh
+        dispatch(fetchCancelledBooking());
+      })
+      .catch((err) => {
+        alert(err || "Cancel failed");
+      });
+  };
+
+  const handleCameraClick = (bookingId) => {
+    setSelectedBookingId(bookingId);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.setAttribute("capture", "environment"); // 📸 camera open
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value);
+    setPage(0);
+  };
+
+  const handleEmailSend = (bookingId) => {
+    if (!bookingId) return;
+
+    const confirmSend = window.confirm(
+      "Are you sure you want to send this quotation via Email?"
+    );
+
+    if (!confirmSend) return;
+
+    dispatch(sendBookingEmail(bookingId))
+      .unwrap()
+      .then(() => {
+        setOpenEmailSnackbar(true);
+      })
+      .catch((err) => {
+        alert(err || "Failed to send Email");
+      });
+  };
+
+  // 📤 Upload handlers
+  const handleUploadClick = (bookingId) => {
+    setSelectedBookingId(bookingId);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.removeAttribute("capture"); // 📁 normal upload
+      fileInputRef.current.click();
+    }
+  };
+
+  const handlePdfPreview = (url) => {
+    if (!url) {
+      alert("No PDF uploaded for this booking");
+      return;
+    }
+    setPreviewLink(url);
+    setOpenPreviewModal(true);
+  };
+
+  const handleClosePreview = () => {
+    setOpenPreviewModal(false);
+    setPreviewLink(null);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedBookingId) return;
+
+    setSelectedFile(file);
+
+    // Preview URL
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+
+    // Modal open
+    setOpenUploadModal(true);
+
+    // reset input
+    e.target.value = "";
+  };
+
+  const handleUploadCancel = () => {
+    setOpenUploadModal(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setSelectedBookingId(null);
+  };
+
+  const handleFinalUpload = () => {
+    if (!selectedFile || !selectedBookingId) return;
+
+    dispatch(uploadQuotationPdf({
+      bookingId: selectedBookingId,
+      file: selectedFile
+    }))
+      .unwrap()
+      .then((res) => {
+        setOpenPdfSnackbar(true);   // success snackbar
+        setOpenUploadModal(false);  // modal close
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        setSelectedBookingId(null);
+        dispatch(fetchActiveBooking());
+      })
+      .catch(() => {
+        alert("❌ PDF upload failed");
+      });
+  };
+
+
+  const handleSlipClick = (bookingId) => {
+    dispatch(viewBookingById(bookingId))
+      .unwrap()
+      .then(() => {
+        setLocalModalOpen(true);
+      })
+      .catch((error) => {
+        console.error("Error loading booking:", error);
+      });
+  };
+
+  const handleCloseSlip = () => {
+    setLocalModalOpen(false);
+    dispatch(clearViewedBooking());
+  };
+
+  const dataSource = selectedList === "revenue" ? revenueData : bookingList;
+
+  const matchText = (text, search) => {
+    if (!text) return false;
+
+    const textWords = text.toLowerCase().split(" ");
+    const searchWords = search.toLowerCase().split(" ");
+
+    return searchWords.every(word =>
+      textWords.some(t => t.includes(word))
+    );
+  };
+
+  const filteredRows = Array.isArray(dataSource)
+    ? dataSource.filter((row) => {
+      const q = searchTerm.trim().toLowerCase();
+
+      return (
+        matchText(row?.biltyNo, q) ||
+        matchText(row?.senderName || row?.fromCustomerName || row?.Name, q) ||
+        matchText(row?.receiverName || row?.["Name (Drop)"], q) ||
+        matchText(row?.pickup || row?.pickupCity, q) ||
+        matchText(row?.drop || row?.dropCity, q) ||
+        matchText(row?.bookingId || row?.["Booking ID"], q) ||
+        matchText(row?.quotationDate || row?.Date, q) ||
+        String(row?.contact || row?.Contact || "").includes(q)
+      );
+    })
+    : [];
+
+  const emptyRows = Math.max(0, (1 + page) * rowsPerPage - filteredRows.length);
+
+  const sortedData = stableSort(filteredRows, getComparator(order, orderBy));
+  const paginatedData = sortedData.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  const cardData = [
+    {
+      id: "request",
+      title: "Booking",
+      value: requestCount,
+      subtitle: "Requests",
+      duration: "0% (30 Days)",
+      icon: <BookOnlineIcon fontSize="large" />,
+      type: "request",
+    },
+    {
+      id: "active",
+      title: "Active ",
+      value: activeDeliveriesCount,
+      subtitle: "Deliveries",
+      duration: "100% (30 Days)",
+      icon: <LocalShippingIcon fontSize="large" />,
+      type: "active",
+    },
+    {
+      id: "cancelled",
+      title: "Total Cancelled",
+      value: cancelledDeliveriesCount,
+      duration: "0% (30 Days)",
+      icon: <CancelScheduleSendIcon fontSize="large" />,
+      type: "cancelled"
+    },
+    {
+      id: "revenue",
+      value: totalRevenue,
+      subtitle: "Total Revenue",
+      duration: "100% (30 Days)",
+      type: "revenue",
+      icon: <AccountBalanceWalletIcon fontSize="large" />,
+    },
+  ];
+
+  const handleDelete = (bookingId) => {
+    if (window.confirm("Are you sure you want to delete this Quotation?")) {
+      dispatch(deleteBooking(bookingId))
+        .unwrap()
+        .then(() => {
+          dispatch(fetchBookingRequest());
+          dispatch(fetchDeletedQuotations());
+        });
+    }
+  };
+
+  const handleView = (bookingId) => navigate(`/viewquotation/${bookingId}`);
+  const handleUpdate = (bookingId) => navigate(`/updatequotation/${bookingId}`);
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* Hidden file input for PDF/Image upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        hidden
+        accept="application/pdf,image/*"
+        onChange={handleFileChange}
+      />
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", p: 2, mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Manage Quotation
+        </Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd} sx={{ textTransform: "none", fontWeight: 500 }}>
+          Add Quotation
+        </Button>
+      </Box>
+
+      <Grid container spacing={2} sx={{ flexWrap: "nowrap", overflowX: "auto", mb: 4 }}>
+        {cardData.map((card) => (
+          <Grid item key={card.id} sx={{ minWidth: 220, flex: 1, display: "flex", borderRadius: 2 }}>
+            <Card
+              onClick={() => handleCardClick(card.type, card.route, card.id)}
+              sx={{
+                flex: 1,
+                cursor: "pointer",
+                border: activeCard === card.id ? `2px solid ${cardColor}` : "2px solid transparent",
+                backgroundColor: activeCard === card.id ? cardLightColor : "background.paper",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  transform: "translateY(-5px)",
+                  boxShadow: theme.shadows[6],
+                  backgroundColor: cardLightColor,
+                  "& .icon-container": {
+                    backgroundColor: cardColor,
+                    color: "#fff",
+                  },
+                },
+              }}
+            >
+              <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Box
+                  className="icon-container"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: "50%",
+                    backgroundColor: activeCard === card.id ? cardColor : cardLightColor,
+                    color: activeCard === card.id ? "#fff" : cardColor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {React.cloneElement(card.icon, { color: "inherit" })}
+                </Box>
+                <Stack spacing={0.5}>
+                  <Typography variant="h5" fontWeight="bold" color={activeCard === card.id ? "primary" : "text.primary"}>
+                    {card.value}
+                  </Typography>
+                  <Typography variant="subtitle1" color={activeCard === card.id ? "primary" : "text.primary"}>
+                    {card.title}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {card.subtitle}
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled">
+                    {card.duration}
+                  </Typography>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Box>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+          <TextField
+            variant="outlined"
+            size="small"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+
+        <TableContainer component={Paper} sx={{ borderRadius: 2, overflowX: 'auto', width: "100%", }}>
+          <Table
+            sx={{
+              width: "100%",
+              tableLayout: "fixed",
+              "& .MuiTableCell-root": {
+                padding: "6px 8px",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }
+            }}
+          >
+            <TableHead sx={{ backgroundColor: "#1565c0" }}>
+              <TableRow>
+                {displayHeadCells
+                  .filter((headCell) => {
+                    // Finalize column only for Active list
+                    if (headCell.id === "active" && selectedList !== "active") return false;
+                    if (headCell.id === "cancelReason" && selectedList !== "cancelled") return false;
+                    return true;
+                  })
+                  .map((headCell) => (
+                    <TableCell
+                      key={headCell.id}
+                      sx={{
+                        fontWeight: "bold",
+                        color: "#fff",
+                        whiteSpace: "nowrap",
+                        backgroundColor: "#1565c0",
+                        minWidth: headCell.width,
+                        maxWidth: headCell.width,
+                        width: headCell.width
+                      }}
+                      sortDirection={orderBy === headCell.id ? order : false}
+                    >
+                      {headCell.sortable ? (
+                        <TableSortLabel
+                          active={orderBy === headCell.id}
+                          direction={orderBy === headCell.id ? order : "asc"}
+                          onClick={() => handleRequestSort(headCell.id)}
+                          sx={{ color: "#fff", "&.Mui-active": { color: "#fff" } }}
+                        >
+                          {headCell.label}
+                        </TableSortLabel>
+                      ) : (
+                        headCell.label
+                      )}
+                    </TableCell>
+                  ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedData.length > 0 ? (
+                paginatedData.map((row, index) => (
+                  <TableRow key={row._id || index} hover>
+                    {isRevenueCardActive ? (
+                      <>
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 80 }}>
+                          {page * rowsPerPage + index + 1}
+                        </TableCell>
+                        <Tooltip title={row.bookingId || ""} arrow>
+                          <TableCell sx={{
+                            whiteSpace: "nowrap", width: 120
+                          }}>
+                            {row.bookingId}
+                          </TableCell>
+                        </Tooltip>
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 100 }}>
+                          {formatDateToDDMMYYYY(row.date)}
+                        </TableCell>
+                        <Tooltip title={row.pickup || ""} arrow>
+                          <TableCell sx={{
+                            whiteSpace: "nowrap", width: 120
+                          }}>
+                            {row.pickup}
+                          </TableCell>
+                        </Tooltip>
+                        <Tooltip title={row.drop || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 80 }}>
+                            {row.drop}
+                          </TableCell>
+                        </Tooltip>
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 120 }}>
+                          {row.revenue ?? "-"}
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 100 }}>
+                          <Box sx={{ display: "flex", gap: 1, flexWrap: "nowrap" }}>
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => handleView(row['Booking ID'] || row.bookingId)}
+                              title="View"
+                              sx={{ minWidth: 'auto' }}
+                            >
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        {/* Finalize Checkbox for Active Tab */}
+                        {selectedList === "active" && (
+                          <TableCell>
+                            <Checkbox
+                              checked={row.status === "Final Delivery"}
+                              disabled={row.status === "Final Delivery"}
+                              color="primary"
+                              onChange={(e) => handleActiveChange(row.orderId, e.target.checked)}
+                            />
+                          </TableCell>
+                        )}
+
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 80 }}>
+                          {page * rowsPerPage + index + 1}
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap", width: 130 }}>
+                          {row.biltyNo || "-"}
+                        </TableCell>
+                        <Tooltip title={row.orderBy || row.bookingId || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 120 }}>
+                            {row.orderBy || row.bookingId}
+                          </TableCell>
+                        </Tooltip>
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 100 }}>
+                          {formatDateToDDMMYYYY(row.Date || row.quotationDate)}
+                        </TableCell>
+                        <Tooltip title={row.fromCustomerName || row.Name || row.senderName || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 150 }}>
+                            {row.fromCustomerName || row.Name || row.senderName}
+                          </TableCell>
+                        </Tooltip>
+                        <Tooltip title={row.pickup || row.pickupCity || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 150 }}>
+                            {row.pickup || row.pickupCity}
+                          </TableCell>
+                        </Tooltip>
+                        <Tooltip title={row["Name (Drop)"] || row.receiverName || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 150 }}>
+                            {row["Name (Drop)"] || row.receiverName}
+                          </TableCell>
+                        </Tooltip>
+                        <Tooltip title={row.drop || row.dropCity || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 150 }}>
+                            {row.drop || row.dropCity}
+                          </TableCell>
+                        </Tooltip>
+                        <Tooltip title={row.Contact || row.contact || ""} arrow>
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 120 }}>
+                            {row.Contact || row.contact}
+                          </TableCell>
+                        </Tooltip>
+                        {selectedList === "cancelled" && (
+                          <TableCell sx={{ whiteSpace: "nowrap", minWidth: 150 }}>
+                            {row.cancelReason || "-"}
+                          </TableCell>
+                        )}
+                        <TableCell sx={{ whiteSpace: "nowrap", minWidth: 250 }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 0.5,
+                              flexWrap: "nowrap",
+                            }}
+                          >
+                            {selectedList === "cancelled" ? (
+                              <>
+                                {/* ✅ Cancel case → sirf Slip + Delete */}
+
+                                <Tooltip title="Slip" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="secondary"
+                                    onClick={() =>
+                                      handleSlipClick(row["Booking ID"] || row.bookingId)
+                                    }
+                                  >
+                                    <ReceiptIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Delete" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleDelete(row["Booking ID"] || row.bookingId)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            ) : (
+                              <>
+                                {/* ✅ TUMHARA ORIGINAL CODE SAME */}
+
+                                <Tooltip title="View" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleView(row["Booking ID"] || row.bookingId)}
+                                  >
+                                    <VisibilityIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Edit" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleUpdate(row["Booking ID"] || row.bookingId)}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Cancel" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() => handleCancel(row["Booking ID"] || row.bookingId)}
+                                  >
+                                    <CancelScheduleSendIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Delete" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleDelete(row["Booking ID"] || row.bookingId)}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Send Email" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    onClick={() =>
+                                      handleEmailSend(row["Booking ID"] || row.bookingId)
+                                    }
+                                  >
+                                    <SendIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                <Tooltip title="Slip" arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="secondary"
+                                    onClick={() =>
+                                      handleSlipClick(row["Booking ID"] || row.bookingId)
+                                    }
+                                  >
+                                    <ReceiptIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+
+                                {/* 📤 Upload */}
+                                {selectedList === "active" && (
+                                  <>
+                                    {/* 📤 Upload */}
+                                    <Tooltip title="Upload PDF" arrow>
+                                      <IconButton
+                                        size="small"
+                                        color="success"
+                                        onClick={() =>
+                                          handleUploadClick(row["Booking ID"] || row.bookingId)
+                                        }
+                                      >
+                                        <UploadIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+
+                                    {/* 📸 Camera */}
+                                    <Tooltip title="Take Photo" arrow>
+                                      <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() =>
+                                          handleCameraClick(row["Booking ID"] || row.bookingId)
+                                        }
+                                      >
+                                        <CameraAltIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </>
+                                )}
+
+                                {/* 👁 Preview */}
+                                {selectedList === "active" && row.quotationPdf && (
+                                  <Tooltip title="Preview PDF" arrow>
+                                    <IconButton
+                                      size="small"
+                                      color="info"
+                                      onClick={() => handlePdfPreview(row.quotationPdf)}
+                                    >
+                                      <PictureAsPdfIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </>
+                            )}
+                          </Box>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={selectedList === "active" ? 11 : 10} align="center" sx={{ py: 3 }}>
+                    <Typography color="text.secondary">
+                      No data found
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {emptyRows > 0 && filteredRows.length > 0 && (
+                <TableRow style={{ height: 53 * emptyRows }}>
+                  <TableCell colSpan={selectedList === "active" ? 11 : 10} />
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={filteredRows.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </TableContainer>
+
+        <QSlipModal
+          open={localModalOpen}
+          handleClose={handleCloseSlip}
+          bookingData={booking}
+        />
+
+        {/* Upload Preview Modal */}
+        <Dialog
+          open={openUploadModal}
+          onClose={handleUploadCancel}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              height: "95vh",        // 🔥 dialog height
+              maxHeight: "95vh",
+              borderRadius: 3,
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 600 }}>
+            Upload Quotation File
+          </DialogTitle>
+
+          <DialogContent
+            sx={{
+              height: "100%",
+              overflow: "auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {previewUrl && (
+              <>
+                {selectedFile?.type === "application/pdf" ? (
+                  <iframe
+                    src={previewUrl}
+                    title="PDF Preview"
+                    style={{
+                      width: "100%",
+                      height: "100%",   // 🔥 full height preview
+                      border: "none",
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ textAlign: "center" }}>
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "90vh",  // 🔥 large image preview
+                        borderRadius: 8,
+                      }}
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2 }}>
+            <Button variant="outlined" color="error" onClick={handleUploadCancel}>
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleFinalUpload}
+              disabled={pdfUploadLoading}
+              startIcon={<UploadIcon />}
+            >
+              {pdfUploadLoading ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* PDF Preview Modal */}
+        <Dialog
+          open={openPreviewModal}
+          onClose={handleClosePreview}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              height: "90vh",
+              borderRadius: 3
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 600 }}>
+            Quotation PDF Preview
+          </DialogTitle>
+
+          <DialogContent sx={{ p: 0 }}>
+            {previewLink && (
+              <iframe
+                src={previewLink}
+                title="Quotation PDF"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none"
+                }}
+              />
+            )}
+          </DialogContent>
+
+          <DialogActions>
+            <Button onClick={handleClosePreview} variant="outlined">
+              Close
+            </Button>
+
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => window.open(previewLink, "_blank")}
+            >
+              Open in New Tab
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={openEmailSnackbar}
+          autoHideDuration={3000}
+          onClose={() => setOpenEmailSnackbar(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setOpenEmailSnackbar(false)}
+            severity="info"
+            variant="filled"
+          >
+            Email sent successfully 📧
+          </Alert>
+        </Snackbar>
+
+        <Snackbar
+          open={openWhatsappSnackbar}
+          autoHideDuration={3000}
+          onClose={() => setOpenWhatsappSnackbar(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setOpenWhatsappSnackbar(false)}
+            severity="success"
+            variant="filled"
+          >
+            WhatsApp message sent successfully 📲
+          </Alert>
+        </Snackbar>
+        <Snackbar
+          open={openPdfSnackbar}
+          autoHideDuration={3000}
+          onClose={() => setOpenPdfSnackbar(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setOpenPdfSnackbar(false)}
+            severity="success"
+            variant="filled"
+          >
+            ✅ PDF uploaded successfully
+          </Alert>
+        </Snackbar>
+
+      </Box>
+    </Box>
+  );
+};
+
+export default QuotationCard;

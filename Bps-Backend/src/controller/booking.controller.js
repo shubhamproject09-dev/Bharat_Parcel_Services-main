@@ -1434,9 +1434,12 @@ export const generateInvoiceByCustomer = async (req, res) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    to.setHours(23, 59, 59, 999);
+    // ✅ FIX: LOCAL DATE CREATE (NO TIMEZONE SHIFT)
+    const [fromY, fromM, fromD] = fromDate.split("-");
+    const from = new Date(fromY, fromM - 1, fromD, 0, 0, 0, 0);
+
+    const [toY, toM, toD] = toDate.split("-");
+    const to = new Date(toY, toM - 1, toD, 23, 59, 59, 999);
 
     // 1️⃣ Get delivered bookings
     const bookings = await Booking.find({
@@ -1886,9 +1889,12 @@ export const getInvoicesByFilter = async (req, res) => {
     if (!fromDate || !toDate) {
       return res.status(400).json({ message: "fromDate and toDate are required" });
     }
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    to.setHours(23, 59, 59, 999);
+    // ✅ FIX: LOCAL DATE CREATE (NO TIMEZONE SHIFT)
+    const [fromY, fromM, fromD] = fromDate.split("-");
+    const from = new Date(fromY, fromM - 1, fromD, 0, 0, 0, 0);
+
+    const [toY, toM, toD] = toDate.split("-");
+    const to = new Date(toY, toM - 1, toD, 23, 59, 59, 999);
 
     // base match
     const matchStage = { bookingDate: { $gte: from, $lte: to } };

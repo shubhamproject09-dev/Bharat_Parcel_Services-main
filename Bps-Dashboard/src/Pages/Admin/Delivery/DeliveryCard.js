@@ -575,7 +575,7 @@ const DeliveryCard = () => {
                                 )}
                                 <TableCell width="80px">S.No</TableCell>
                                 <TableCell>Bilty No.</TableCell>
-                                <TableCell>Order ID</TableCell>
+                                <TableCell>Booking Date</TableCell>
                                 <TableCell>From Name</TableCell>
                                 <TableCell>To Name</TableCell>
                                 <TableCell>Pickup</TableCell>
@@ -603,7 +603,7 @@ const DeliveryCard = () => {
                                     const uniqueId = getUniqueId(item, idx, 'booking');
                                     const fromName = item.fromName || item.Name || 'N/A';
                                     const toName = getToName(item);
-                                    const orderId = item?.data?.orderId || item.bookingId || item['Booking ID'] || 'N/A';
+                                    const orderId = item?.date || 'N/A';
                                     const biltyNo =
                                         item.biltyNo ||
                                         item.receiptNo ||

@@ -223,7 +223,7 @@ export const generateInvoicePDF = async (data) => {
         // Invoice Date
         rightY += 4;
         doc.font("Helvetica").fontSize(9)
-            .text(`Invoice Date: ${formatDate(billDate)}`, 305, rightY, { width: 240 });
+            .text(`Invoice Date: 30-04-2026`, 305, rightY, { width: 240 });
 
         rightY += 12;
         doc.moveTo(305, rightY).lineTo(PAGE_RIGHT, rightY).lineWidth(0.3).stroke();
@@ -277,10 +277,11 @@ export const generateInvoicePDF = async (data) => {
         });
 
         y += 30;
+        // ✅ FIX: BODY FONT RESET (VERY IMPORTANT)
+        doc.font("Helvetica").fontSize(8).fillColor("black");
 
         // ================= TABLE BODY =================
         let totalAmount = 0, totalIgst = 0;
-        doc.font("Helvetica").fontSize(8).fillColor('black');
 
         bookings.forEach((b, i) => {
             const item = b.items?.[0] || {};
@@ -333,7 +334,10 @@ export const generateInvoicePDF = async (data) => {
                 doc.addPage();
                 y = 60;
 
-                // 👉 FULL HEADER repeat करो
+                // ✅ RESET FONT (IMPORTANT)
+                doc.font("Helvetica").fontSize(8).fillColor("black");
+
+                // 👉 HEADER
                 doc.font("Helvetica-Bold").fontSize(16)
                     .text(station.name, PAGE_LEFT, y, { width: PAGE_WIDTH, align: "center" });
 
@@ -343,6 +347,9 @@ export const generateInvoicePDF = async (data) => {
                     .text("TAX INVOICE", 40, y, { width: 520, align: "center" });
 
                 y += 25;
+
+                // ✅ FIX: TABLE HEADER FONT SET KARO
+                doc.font("Helvetica-Bold").fontSize(9);
 
                 // 👉 TABLE HEADER repeat
                 doc.rect(startX, y, tableWidth, 30).stroke();
@@ -357,6 +364,8 @@ export const generateInvoicePDF = async (data) => {
                 });
 
                 y += 30;
+                // ✅ AGAIN RESET BODY FONT
+                doc.font("Helvetica").fontSize(8).fillColor("black");
             }
 
             // Draw row border
@@ -373,7 +382,7 @@ export const generateInvoicePDF = async (data) => {
                 doc.text(String(t), xx + 6, y + 6, {
                     width: widths[j] - 12,
                     align,
-                    lineBreak: true
+                    lineBreak: true,
                 });
                 // Draw vertical lines between columns
                 if (j > 0) {
@@ -487,7 +496,7 @@ export const generateInvoicePDF = async (data) => {
 
         doc.font("Helvetica").fontSize(7)
             .text(
-                `Invoice ${invoiceNo} | Generated on: ${formatDate(new Date())}`,
+                `Invoice ${invoiceNo} | Generated on: 30-04-2026`,
                 40,
                 y + 10,
                 { width: 520, align: "center" }

@@ -46,6 +46,14 @@ const TrackerCard = () => {
     ] = useState(false);
     const navigate = useNavigate();
 
+    const formatLocalDate = (date) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
     const handleGenerateInvoice = async () => {
         if (!selectedCustomer || !fromDate || !toDate) {
             setErrorMsg("Please fill in all fields");
@@ -69,8 +77,8 @@ const TrackerCard = () => {
                 },
                 body: JSON.stringify({
                     customerName: selectedCustomer.name,
-                    fromDate: fromDate.toISOString().split("T")[0],
-                    toDate: toDate.toISOString().split("T")[0],
+                    fromDate: formatLocalDate(fromDate),
+                    toDate: formatLocalDate(toDate),
                     invoiceType,
                 }),
             });

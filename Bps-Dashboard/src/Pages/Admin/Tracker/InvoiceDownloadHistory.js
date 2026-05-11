@@ -21,7 +21,7 @@ import DownloadIcon
 
 import axios from "axios";
 
-import { BOOKINGS_API }
+import { BOOKINGS_API, FILES_BASE_URL }
     from "../../../utils/api";
 
 export default function InvoiceDownloadHistory() {
@@ -48,91 +48,21 @@ export default function InvoiceDownloadHistory() {
 
             try {
 
-                const response =
-                    await fetch(
-                        `${BOOKINGS_API}/invoice`,
-                        {
+                if (row.pdfPath) {
 
-                            method: "POST",
+                    window.open(
 
-                            headers: {
-                                "Content-Type": "application/json",
+                        `${FILES_BASE_URL}${row.pdfPath}`,
 
-                                Authorization:
-                                    `Bearer ${localStorage.getItem("authToken")}`
-                            },
-
-                            body: JSON.stringify({
-
-                                customerName:
-                                    [
-                                        row.customerId?.firstName,
-                                        row.customerId?.middleName,
-                                        row.customerId?.lastName
-                                    ]
-                                        .filter(Boolean)
-                                        .join(" "),
-
-                                fromDate:
-                                    new Date(
-                                        row.fromDate
-                                    )
-                                        .toISOString()
-                                        .split("T")[0],
-
-                                toDate:
-                                    new Date(
-                                        row.toDate
-                                    )
-                                        .toISOString()
-                                        .split("T")[0],
-
-                                invoiceType:
-                                    row.invoiceType
-
-                            })
-
-                        }
+                        "_blank"
                     );
 
-                if (
-                    response.ok &&
-                    response.headers
-                        .get("content-type")
-                        ?.includes("pdf")
-                ) {
-
-                    const blob =
-                        await response.blob();
-
-                    const url =
-                        window.URL
-                            .createObjectURL(blob);
-
-                    const a =
-                        document.createElement("a");
-
-                    a.href = url;
-
-                    a.download =
-                        `${row.invoiceNumber}.pdf`;
-
-                    document.body.appendChild(a);
-
-                    a.click();
-
-                    a.remove();
-
-                    window.URL.revokeObjectURL(url);
-
+                    return;
                 }
-                else {
 
-                    alert(
-                        "Download failed"
-                    );
-
-                }
+                alert(
+                    "PDF not found"
+                );
 
             }
             catch (err) {
@@ -140,9 +70,7 @@ export default function InvoiceDownloadHistory() {
                 alert(
                     "Download failed"
                 );
-
             }
-
         };
 
     const handleChangePage =
@@ -323,16 +251,17 @@ export default function InvoiceDownloadHistory() {
                                     <TableCell>
 
                                         {
-                                            [
-                                                row.customerId?.firstName,
+                                            row.invoiceType === "toPay"
 
-                                                row.customerId?.middleName,
+                                                ? row.receiverName
 
-                                                row.customerId?.lastName
-
-                                            ]
-                                                .filter(Boolean)
-                                                .join(" ")
+                                                : [
+                                                    row.customerId?.firstName,
+                                                    row.customerId?.middleName,
+                                                    row.customerId?.lastName
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(" ")
                                         }
 
                                     </TableCell>

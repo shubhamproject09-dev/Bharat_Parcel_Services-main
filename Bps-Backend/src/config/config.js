@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const configObj = {
-    port: process.env.PORT || 5001,
+    port: process.env.PORT || 8001,
     mongoURI: process.env.MONGODB_URL,
     twilio: {
         sid: process.env.TWILIO_SID,

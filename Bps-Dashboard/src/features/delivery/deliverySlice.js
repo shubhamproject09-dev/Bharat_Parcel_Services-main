@@ -38,6 +38,44 @@ export const finalDeliveryList = createAsyncThunk(
     }
   }
 )
+export const pendingInvoiceDeliveries =
+  createAsyncThunk('delivery/pendingInvoiceDeliveries',
+    async (
+      {
+        fromDate,
+        toDate,
+        invoiceType
+      },
+      thunkApi
+    ) => {
+
+      try {
+
+        const res = await axios.get(
+
+          `${BASE_URL}/pending-invoice-deliveries`,
+
+          {
+            params: {
+              fromDate,
+              toDate,
+              invoiceType
+            }
+          }
+        );
+
+        return res.data;
+
+      } catch (err) {
+
+        return thunkApi.rejectWithValue(
+
+          err.response?.data?.message ||
+          "Failed to fetch pending deliveries"
+        );
+      }
+    }
+  )
 export const finalDeliveryMail = createAsyncThunk(
   'finalDelivery/mail', async (orderId, thunkApi) => {
     try {
@@ -70,7 +108,6 @@ export const finalizeDelivery = createAsyncThunk(
     }
   }
 )
-
 export const driverAvailabile = createAsyncThunk(
   'driver/available', async (deliveryType, thunkApi) => {
     try {
@@ -99,7 +136,8 @@ const deliverySlice = createSlice({
     deliveries: [],
     driver: [],
     vehicle: [],
-
+    pendingInvoiceList: [],
+    pendingCount: 0,
     loading: false,
     error: null,
 
@@ -178,6 +216,39 @@ const deliverySlice = createSlice({
         state.loading = false;
         state.vehicle = action.payload
       })
+      .addCase(
+        pendingInvoiceDeliveries.pending,
+        (state) => {
+
+          state.loading = true;
+          state.error = null;
+        }
+      )
+
+      .addCase(
+        pendingInvoiceDeliveries.fulfilled,
+        (state, action) => {
+
+          state.loading = false;
+
+          state.pendingInvoiceList =
+            action.payload.data;
+
+          state.pendingCount =
+            action.payload.pendingCount;
+        }
+      )
+
+      .addCase(
+        pendingInvoiceDeliveries.rejected,
+        (state, action) => {
+
+          state.loading = false;
+
+          state.error =
+            action.payload;
+        }
+      )
       ;
   },
 });

@@ -6,7 +6,7 @@ import { generateAndCommitBookingReceiptNo } from "../utils/generateReceiptNo.js
 const ItemSchema = new mongoose.Schema({
   receiptNo: {
     type: String,
-    required: true
+    required: true,
   },
   refNo: {
     type: String,

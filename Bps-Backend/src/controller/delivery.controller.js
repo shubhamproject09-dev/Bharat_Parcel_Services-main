@@ -3,6 +3,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import Booking from "../model/booking.model.js";
 import Quotation from "../model/customerQuotation.model.js";
 import Delivery from "../model/delivery.model.js";
+import { Invoice } from "../model/Invoice.js";
+import moment from "moment-timezone";
 import { Vehicle } from "../model/vehicle.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -48,8 +50,6 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-
-
 export const getAvailableDrivers = asyncHandler(async (req, res) => {
   let deliveryType = req.query.type; // "Booking" or "Quotation"
 
@@ -81,8 +81,6 @@ export const getAvailableDrivers = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Available drivers fetched successfully", driverList));
 });
-
-
 
 export const getAvailableVehicles = asyncHandler(async (req, res) => {
   let deliveryType = req.query.type;
@@ -116,9 +114,6 @@ export const getAvailableVehicles = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, "Available vehicles fetched successfully", { availableVehicles: result }));
 });
-
-
-
 
 export const assignDelivery = asyncHandler(async (req, res) => {
   console.log("Req", req.body);
@@ -254,7 +249,6 @@ export const assignDelivery = asyncHandler(async (req, res) => {
   );
 });
 
-
 export const listBookingDeliveries = asyncHandler(async (req, res) => {
   const deliveries = await Delivery.find({ deliveryType: "Booking", status: { $ne: "Final Delivery" } })
     .populate([
@@ -384,7 +378,6 @@ export const finalizeDelivery = asyncHandler(async (req, res) => {
     }, "Delivery marked as final.")
   );
 });
-
 
 export const sendDeliverySuccessEmail = async (email, booking) => {
   const {
@@ -552,3 +545,190 @@ export const listFinalDeliveries = asyncHandler(async (req, res) => {
     new ApiResponse(200, data, "Final delivery list fetched successfully.")
   );
 });
+
+export const getPendingInvoiceDeliveries =
+  asyncHandler(async (req, res) => {
+
+    const {
+      fromDate,
+      toDate,
+      invoiceType
+    } = req.query;
+
+    // ✅ already invoiced booking ids
+    const usedBookingIds =
+      await Invoice.distinct("bookingIds");
+
+    // ✅ same logic as final delivery
+    let filter = {
+      status: "Final Delivery",
+      deliveryType: "Booking"
+    };
+
+    // ✅ supervisor wise filter
+    if (req.user.role === "supervisor") {
+
+      filter.$or = [
+        { pickup: req.user.startStation },
+        { drop: req.user.startStation }
+      ];
+    }
+
+    const deliveries =
+      await Delivery.find(filter)
+
+        .populate({
+          path: "bookingId",
+          populate: [
+            {
+              path: "customerId",
+              select:
+                "firstName middleName lastName"
+            }
+          ]
+        })
+
+        .sort({ createdAt: -1 })
+
+        .lean();
+
+    // ✅ remove invoiced bilty
+    const pending =
+      deliveries.filter(d => {
+
+        if (!d.bookingId?._id)
+          return false;
+
+        const alreadyUsed =
+          usedBookingIds.some(
+            id =>
+              id.toString() ===
+              d.bookingId._id.toString()
+          );
+
+        if (alreadyUsed)
+          return false;
+
+        if (invoiceType) {
+
+          const type =
+            d.bookingId?.items?.[0]?.toPay;
+
+          if (type !== invoiceType)
+            return false;
+        }
+
+        if (fromDate && toDate) {
+
+          const bookingDate =
+            new Date(
+              d.bookingId.bookingDate
+            );
+
+          const from =
+            new Date(fromDate);
+
+          from.setHours(0, 0, 0, 0);
+
+          const to =
+            new Date(toDate);
+
+          to.setHours(23, 59, 59, 999);
+
+          if (
+            bookingDate < from ||
+            bookingDate > to
+          ) {
+            return false;
+          }
+        }
+
+        // ✅ supervisor wise bilty filter
+
+        if (req.user.role === "supervisor") {
+
+          const stationCode =
+            req.user.startStation
+              ?.substring(0, 3)
+              ?.toUpperCase();
+
+          const biltyNo =
+            d.bookingId?.items?.[0]
+              ?.receiptNo || "";
+
+          if (
+            !biltyNo.includes(
+              `BPS-${stationCode}`
+            )
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+    // ✅ final response
+    const data =
+      pending.map((d, i) => ({
+
+        SNo: i + 1,
+
+        orderId:
+          d.orderId,
+
+        biltyNo:
+          d.bookingId?.items?.[0]
+            ?.receiptNo || "N/A",
+
+        customerName:
+          [
+            d.bookingId?.customerId
+              ?.firstName,
+
+            d.bookingId?.customerId
+              ?.middleName,
+
+            d.bookingId?.customerId
+              ?.lastName
+          ]
+            .filter(Boolean)
+            .join(" "),
+
+        senderName:
+          d.bookingId?.senderName,
+
+        receiverName:
+          d.bookingId?.receiverName,
+
+        pickup:
+          d.pickup,
+
+        drop:
+          d.drop,
+
+        invoiceType:
+          d.bookingId?.items?.[0]
+            ?.toPay,
+
+        bookingDate:
+          moment(
+            d.bookingId?.bookingDate
+          )
+            .tz("Asia/Kolkata")
+            .format("DD/MM/YYYY")
+
+      }));
+
+    res.status(200).json({
+
+      success: true,
+
+      pendingCount:
+        data.length,
+
+      data
+
+    });
+
+  });

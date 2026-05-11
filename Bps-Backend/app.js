@@ -12,19 +12,43 @@ import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const app = express()
-app.use(
-    cors({
-        origin: [
-            "https://bharatparcel.org",
-            "https://www.bharatparcel.org",
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "https://admin.bharatparcel.org"
-        ],
-        credentials: true
-    })
-);
+const app = express();
+
+app.set("trust proxy", 1);
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://bharatparcel.cloud",
+    "https://www.bharatparcel.cloud",
+    "https://admin.bharatparcel.cloud"
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
+
+    credentials: true,
+
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+
+    allowedHeaders: [
+        "Origin",
+        "X-Requested-With",
+        "Content-Type",
+        "Accept",
+        "Authorization"
+    ]
+}));
+
+app.options(/.*/, cors());
 
 app.use(express.json(
     {
@@ -40,9 +64,14 @@ app.use(express.urlencoded(
 ))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.use(
+    "/invoices",
+    express.static(
+        path.join(process.cwd(), "public", "invoices")
+    )
+);
+
 app.use(cookieParser());
-
-
 
 import manageStation from "./src/router/manageStation.router.js"
 app.use("/api/v2/stations", manageStation);

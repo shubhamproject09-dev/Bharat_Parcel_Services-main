@@ -167,22 +167,32 @@ export const generateInvoicePDF = async (data) => {
         leftY += 16;
 
         // 🔥 Decide billing party based on toPay
-        const payType = booking.items?.[0]?.toPay;
+        // 🔥 BILL TO LOGIC
+        const payType = String(
+            booking.items?.[0]?.toPay || ""
+        ).toLowerCase().trim();
 
-        const billToName =
-            payType === "paid"
-                ? booking.senderName
-                : booking.receiverName;
+        // ✅ paid => sender
+        // ✅ topay => receiver
 
-        const billToAddress =
-            payType === "paid"
-                ? booking.senderLocality
-                : booking.receiverLocality;
+        const isToPay =
+            payType === "topay" ||
+            payType === "toPay".toLowerCase();
 
-        const billToGst =
-            payType === "paid"
-                ? booking.senderGgt
-                : booking.receiverGgt;
+        const billToName = isToPay
+            ? booking.receiverName
+            : booking.senderName;
+
+        const billToAddress = isToPay
+            ? booking.receiverLocality
+            : booking.senderLocality;
+
+        const billToGst = isToPay
+            ? booking.receiverGgt
+            : booking.senderGgt;
+
+        console.log("PAY TYPE =>", payType);
+        console.log("BILL TO =>", billToName);
 
         // Name (BOLD)
         doc.font("Helvetica-Bold").fontSize(9)

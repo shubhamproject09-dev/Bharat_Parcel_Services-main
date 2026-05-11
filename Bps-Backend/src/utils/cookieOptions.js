@@ -7,9 +7,10 @@ export const getCookieOptions = (req) => {
 
     return {
         httpOnly: true,
-        secure: !isLocal,                 // local = false, live = true
+        secure: !isLocal,
         sameSite: isLocal ? "lax" : "none",
-        domain: isLocal ? undefined : ".bharatparcel.org",
-        maxAge: 10 * 60 * 60 * 1000
+        domain: isLocal ? undefined : ".bharatparcel.cloud",
+        maxAge: 10 * 60 * 60 * 1000,
+        path: "/"
     };
 };

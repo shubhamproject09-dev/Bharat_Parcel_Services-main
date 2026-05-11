@@ -1,6 +1,4 @@
 
-
-
 import express from 'express';
 import {
   assignDelivery,
@@ -13,7 +11,8 @@ import {
   listFinalDeliveries,
   sendDeliverySuccessByOrderId,
   getAvailableDrivers,
-  getAvailableVehicles
+  getAvailableVehicles,
+  getPendingInvoiceDeliveries
 } from '../controller/delivery.controller.js';
 import { parseFormData } from '../middleware/multerParser.middleware.js'
 const router = express.Router();
@@ -36,6 +35,12 @@ router.get('/quotation/count', countQuotationDeliveries);
 router.get("/final/count", countFinalDeliveries);
 
 router.get("/final/list", listFinalDeliveries);
+
+// 🔥 pending invoice bilty
+router.get(
+  "/pending-invoice-deliveries",
+  getPendingInvoiceDeliveries
+);
 
 // Finalize a Delivery (based on orderId)
 router.put('/finalize/:orderId', finalizeDelivery);

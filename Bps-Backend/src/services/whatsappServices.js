@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://crmapp.whatsupapi.com/api/meta";
+const BASE_URL = "https://crmapp.whatsupapi.com/api/meta";
 const PHONE_NUMBER_ID = "989739060882907";
 const TOKEN = "ZdPhhaj8iDQawQeQcc745dsoikCYxHaSmiw5I0Thkdd8CWNhglXnDqVEHozY8OVqfZaWp6UpNhVU5ERVJTQ09SRQeCREFTSAZJpHMkGZJkjH2iApsZ7lh3ulF4F1L7VU5ERVJTQ09SRQmiG27MZ0RBPtMI";
 

@@ -15,6 +15,8 @@ import { uploadToCloudinary } from "../utils/uploadPdfToCloudinary.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import mongoose from "mongoose"
+import fs from "fs";
+import path from "path";
 import InvoiceHistory from "../model/invoiceHistory.model.js";
 import { Invoice } from "../model/Invoice.js";
 async function resolveStation(name) {
@@ -96,7 +98,6 @@ const getBookingFilterByType = (type, user) => {
   return baseFilter;
 };
 
-
 export const viewBooking = async (req, res) => {
   const { id } = req.params;
 
@@ -124,7 +125,6 @@ export const viewBooking = async (req, res) => {
 
   res.status(200).json(formattedBooking);
 };
-
 
 export const createBooking = async (req, res) => {
 
@@ -233,6 +233,7 @@ export const createBooking = async (req, res) => {
     res.status(500).json({ message: err.message || "Server Error" });
   }
 };
+
 export const createPublicBooking = async (req, res) => {
   try {
     const {
@@ -532,6 +533,7 @@ export const deleteBooking = async (req, res) => {
     });
   }
 };
+
 export const listDeletedBookings = async (req, res) => {
   try {
     const deletedBookings = await Booking.find({ isDeleted: true });
@@ -540,6 +542,7 @@ export const listDeletedBookings = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 export const getDeletedBookings = async (req, res) => {
   try {
     const deletedBookings = await Booking.find({ isDeleted: true });
@@ -708,6 +711,7 @@ export const getPendingThirdPartyBookings = async (req, res) => {
     res.status(500).json({ message: err.message || "Server error" });
   }
 };
+
 export const approveThirdPartyBookingRequest = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -922,6 +926,7 @@ export const activateBooking = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 export const customerWiseData = async (req, res) => {
   const { fromDate, endDate } = req.body;
   const start = new Date(fromDate);
@@ -986,6 +991,7 @@ export const customerWiseData = async (req, res) => {
     new ApiResponse(200, summary, "Customer booking successfully fetched")
   );
 };
+
 export const overallBookingSummary = async (req, res) => {
   try {
     const { fromDate, endDate } = req.body;
@@ -1441,12 +1447,35 @@ export const generateInvoiceByCustomer = async (req, res) => {
     const [toY, toM, toD] = toDate.split("-");
     const to = new Date(toY, toM - 1, toD, 23, 59, 59, 999);
 
-    // 1️⃣ Get delivered bookings
-    const bookings = await Booking.find({
+    // ✅ logged in supervisor/admin
+    const loggedInUser = req.user;
+
+    // ✅ base filter
+    let bookingFilter = {
       bookingDate: { $gte: from, $lte: to },
       isDelivered: true,
       "items.toPay": invoiceType
-    }).populate("startStation");
+    };
+
+    // ✅ supervisor => only own station bookings
+    if (loggedInUser.role === "supervisor") {
+
+      const station = await Station.findOne({
+        stationName: loggedInUser.startStation
+      });
+
+      if (!station) {
+        return res.status(404).json({
+          message: "Supervisor station not found"
+        });
+      }
+
+      bookingFilter.startStation = station._id;
+    }
+
+    // ✅ final bookings
+    const bookings = await Booking.find(bookingFilter)
+      .populate("startStation");
 
     if (!bookings.length) {
       return res.status(404).json({ message: "No bookings found" });
@@ -1503,10 +1532,75 @@ export const generateInvoiceByCustomer = async (req, res) => {
       });
     }
 
+    // 🔥 CHECK ALREADY GENERATED BILTY
+
+    const bookingIds = invoiceBookings.map(b => b._id);
+
+    const alreadyUsedInvoice = await Invoice.findOne({
+      bookingIds: { $in: bookingIds }
+    });
+
+    if (alreadyUsedInvoice) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          `This bilty is already used in invoice ${alreadyUsedInvoice.invoiceNumber}`
+
+      });
+    }
+
     // 3️⃣ Invoice number
     const invoiceNo = await generateInvoiceNumber(
       invoiceBookings[0]?.startStation?.stationName || "DEL"
     );
+    //////// SAVE MASTER INVOICE ////////
+
+    const billDate = new Date();
+
+    // 4️⃣ Generate PDF
+    const pdfBuffer = await generateInvoicePDF({
+      bookings: invoiceBookings,
+      invoiceNo,
+      billDate,
+    });
+
+    // ✅ SAVE PDF IN FOLDER
+
+    const pdfFilePath = path.join(
+
+      process.cwd(),
+
+      "public",
+
+      "invoices",
+
+      `${invoiceNo}.pdf`
+    );
+
+    // ✅ CREATE FOLDER IF NOT EXISTS
+
+    fs.mkdirSync(
+
+      path.dirname(pdfFilePath),
+
+      { recursive: true }
+    );
+
+    // ✅ WRITE PDF
+
+    fs.writeFileSync(
+      pdfFilePath,
+      pdfBuffer
+    );
+
+    // ✅ PDF URL PATH
+
+    const pdfPath =
+      `/invoices/${invoiceNo}.pdf`;
+
     //////// SAVE MASTER INVOICE ////////
 
     await Invoice.create({
@@ -1534,9 +1628,11 @@ export const generateInvoiceByCustomer = async (req, res) => {
       invoiceType,
 
       totals: {
+
         subtotal:
           invoiceBookings.reduce(
-            (s, b) => s + (b.billTotal || 0),
+            (s, b) =>
+              s + (b.billTotal || 0),
             0
           ),
 
@@ -1560,17 +1656,11 @@ export const generateInvoiceByCustomer = async (req, res) => {
           )
       },
 
-      createdByUser: req.user._id
+      createdByUser:
+        req.user._id,
 
-    });
+      pdfPath,
 
-    const billDate = new Date();
-
-    // 4️⃣ Generate PDF
-    const pdfBuffer = await generateInvoicePDF({
-      bookings: invoiceBookings,
-      invoiceNo,
-      billDate,
     });
 
     // ✅ SAVE DOWNLOAD HISTORY
@@ -1651,7 +1741,6 @@ export const getPaidInvoiceHistory = async (req, res) => {
   }
 };
 
-
 export const getToPayInvoiceHistory = async (req, res) => {
   try {
 
@@ -1665,12 +1754,39 @@ export const getToPayInvoiceHistory = async (req, res) => {
     }
 
     const invoices = await Invoice.find(filter)
+
       .populate("customerId")
+
+      // 🔥 booking data bhi lao
+      .populate({
+        path: "bookingIds",
+        select: "receiverName senderName items"
+      })
+
       .sort({ createdAt: -1 });
+
+    // 🔥 TOPAY => RECEIVER NAME
+    // 🔥 PAID => SENDER NAME
+
+    const modifiedInvoices = invoices.map(inv => {
+
+      const firstBooking = inv.bookingIds?.[0];
+
+      return {
+        ...inv.toObject(),
+
+        receiverName:
+          firstBooking?.receiverName || "",
+
+        senderName:
+          firstBooking?.senderName || ""
+      };
+
+    });
 
     res.json({
       success: true,
-      data: invoices
+      data: modifiedInvoices
     });
 
   } catch (err) {
@@ -1989,6 +2105,7 @@ export const getInvoicesByFilter = async (req, res) => {
     res.status(500).json({ message: err.message || "Server Error", error: true });
   }
 };
+
 export const getIncomingBookings = async (req, res) => {
   try {
     const user = req.user;

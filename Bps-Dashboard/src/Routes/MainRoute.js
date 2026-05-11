@@ -61,6 +61,7 @@ import AddRateList from "../Pages/Admin/RateList/Form/rateListForm";
 import ViewRate from "../Pages/Admin/RateList/Form/ViewRate";
 import EditRate from "../Pages/Admin/RateList/Form/EditRate";
 import InvoiceDownloadHistory from "../Pages/Admin/Tracker/InvoiceDownloadHistory"
+import PendingInvoiceList from '../Pages/Admin/Tracker/PendingInvoiceList';
 
 const MainRoute = () => {
     const location = useLocation();
@@ -81,7 +82,7 @@ const MainRoute = () => {
     // Handle token expiration and logout
     useEffect(() => {
         if (!isAuthenticated) {
-            window.location.href = "https://admin.bharatparcel.org";
+            window.location.href = "https://admin.bharatparcel.cloud";
         } else {
             const expirationTime = getTokenExpiration(token);
             const currentTime = Date.now();
@@ -103,7 +104,7 @@ const MainRoute = () => {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userRole");
         alert("Session expired. You have been logged out.");
-        window.location.href = "https://bharatparcel.org/login";
+        window.location.href = "https://bharatparcel.cloud/login";
     };
 
     if (!isAuthenticated) {
@@ -127,6 +128,10 @@ const MainRoute = () => {
 
                 <Route path="/invoice" element={<TrackerCard />} />
                 <Route path="/invoice-download-history" element={<InvoiceDownloadHistory />} />
+                <Route
+                    path="/pending-invoice-bilty"
+                    element={<PendingInvoiceList />}
+                />
 
                 {/* Ledger */}
                 <Route path="/ladger" element={<LedgerCard />} />

@@ -1,12 +1,12 @@
 // Global API Base URL
-export const API_BASE_URL = 'http://localhost:8000/api/v2';    //https://api.bharatparcel.org/api/v2
+export const API_BASE_URL = 'http://localhost:8001/api/v2';    //https://api.bharatparcel.cloud/api/v2
 
 //upload image url
-export const FILES_BASE_URL = 'http://localhost:8000';         //https://api.bharatparcel.org
+export const FILES_BASE_URL = 'http://localhost:8001';         //https://api.bharatparcel.cloud
 
-export const WHATSAPP_API = 'http://localhost:8000/api/whatsapp';   //https://api.bharatparcel.org/api/whatsapp
+export const WHATSAPP_API = 'http://localhost:8001/api/whatsapp';   //https://api.bharatparcel.cloud/api/whatsapp
 
-export const FRONTEND_BASE_URL = 'https://bharatparcel.org';     //https://bharatparcel.org
+export const FRONTEND_BASE_URL = 'https://bharatparcel.cloud';     //https://bharatparcel.cloud
 
 
 // Specific modules ke liye alag BASE_URL banake export kar do

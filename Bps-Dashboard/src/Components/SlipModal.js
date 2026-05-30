@@ -2157,9 +2157,9 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                         </>
                     )}
                 </Box>
-                <Box ref={originalRef}>
+                {/* <Box ref={originalRef}>
                     <Invoice copyType="Original" />
-                </Box>
+                </Box> */}
                 {/* WhatsApp only original */}
                 <div style={{ position: "absolute", left: "-9999px" }}>
                     <div

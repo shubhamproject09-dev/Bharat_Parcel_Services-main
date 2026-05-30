@@ -2,7 +2,7 @@ import axios from "axios";
 
 const BASE_URL = "https://crmapp.whatsupapi.com/api/meta";
 const PHONE_NUMBER_ID = "989739060882907";
-const TOKEN = "ZdPhhaj8iDQawQeQcc745dsoikCYxHaSmiw5I0Thkdd8CWNhglXnDqVEHozY8OVqfZaWp6UpNhVU5ERVJTQ09SRQeCREFTSAZJpHMkGZJkjH2iApsZ7lh3ulF4F1L7VU5ERVJTQ09SRQmiG27MZ0RBPtMI";
+const TOKEN = "ZdPhhaj8iDQawQeQjJvbmOdi376DLOssSPagGTCBnEBGj3mZIpwIKx7CjkGVfeu6PZNmbVaoC0Gghv1apNhgoy7OVU5ERVJTQ09SRQ2FfcTs0VtaLBCmVGadNOREFTSAnFFE1yqJOEefo";
 
 export const sendWhatsappTemplate = async ({
   mobile,

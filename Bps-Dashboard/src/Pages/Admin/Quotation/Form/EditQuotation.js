@@ -63,6 +63,10 @@ const initialValues = {
     ins_vpp: "",
     billTotal: "",
     grandTotal: "",
+    biltyAmount: "20",
+    roundOff: "0.00",
+    finalTotal: "",
+    insVppAmount: "",
 };
 
 const EditQuotationForm = () => {
@@ -104,6 +108,82 @@ const EditQuotationForm = () => {
         return <CircularProgress />;
     }
 
+    const EffectSyncTotal = ({ values, setFieldValue }) => {
+        useEffect(() => {
+
+            const biltyAmount = 20;
+
+            // Freight Total
+            const freight = values.productDetails.reduce(
+                (sum, item) => sum + (parseFloat(item.price) || 0),
+                0
+            );
+
+            // INS/VPP
+            const insVppAmount =
+                parseFloat(values.insVppAmount || 0);
+
+            // TAXABLE AMOUNT
+            const taxableAmount =
+                freight + insVppAmount;
+
+            // GST %
+            const taxPercent =
+                parseFloat(values.sTax || 0);
+
+            // GST AMOUNT
+            const gstAmount =
+                (taxableAmount * taxPercent) / 100;
+
+            // RAW TOTAL
+            const rawTotal =
+                taxableAmount +
+                gstAmount +
+                biltyAmount;
+
+            const roundedTotal = Math.round(rawTotal);
+
+            // exact round off
+            const roundOff = (
+                roundedTotal - rawTotal
+            ).toFixed(2);
+
+            // FINAL SET
+            setFieldValue(
+                "billTotal",
+                taxableAmount.toFixed(2)
+            );
+
+            setFieldValue(
+                "biltyAmount",
+                biltyAmount.toFixed(2)
+            );
+
+            setFieldValue(
+                "grandTotal",
+                rawTotal.toFixed(2)
+            );
+
+            setFieldValue(
+                "roundOff",
+                roundOff
+            );
+
+            setFieldValue(
+                "finalTotal",
+                roundedTotal.toFixed(2)
+            );
+
+        }, [
+            values.productDetails,
+            values.insVppAmount,
+            values.sTax,
+            setFieldValue,
+        ]);
+
+        return null;
+    };
+
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -111,6 +191,13 @@ const EditQuotationForm = () => {
                 initialValues={{
                     ...initialValues,
                     ...viewedBooking,
+                    biltyAmount: viewedBooking?.biltyAmount || "20",
+                    roundOff: viewedBooking?.roundOff || "0.00",
+                    finalTotal: viewedBooking?.finalTotal || viewedBooking?.grandTotal || "",
+                    insVppAmount:
+                        viewedBooking?.insVppAmount ||
+                        viewedBooking?.ins_vpp ||
+                        "",
                     quotationDate: viewedBooking?.quotationDate ? new Date(viewedBooking.quotationDate) : new Date(),
                     proposedDeliveryDate: viewedBooking?.proposedDeliveryDate ? new Date(viewedBooking.proposedDeliveryDate) : new Date(),
                 }}
@@ -172,6 +259,10 @@ const EditQuotationForm = () => {
 
                     return (
                         <Form>
+                            <EffectSyncTotal
+                                values={values}
+                                setFieldValue={setFieldValue}
+                            />
                             <Button
                                 variant="outlined"
                                 startIcon={<ArrowBack />}
@@ -578,7 +669,7 @@ const EditQuotationForm = () => {
                                             name="additionalCmt"
                                             label="Additional Comments"
                                             multiline
-                                            minRows={3}
+                                            minRows={12}
                                             fullWidth
                                             value={values.additionalCmt}
                                             onChange={handleChange}
@@ -586,27 +677,60 @@ const EditQuotationForm = () => {
                                         />
                                     </Grid>
                                     <Grid size={{ xs: 12, md: 3 }}>
-                                        <Grid container spacing={2}>
-                                            {[
-                                                ["sTax", "sTax"],
-                                                ["grandTotal", "Grand Total"],
-                                            ].map(([name, label]) => (
-                                                <Grid size={{ xs: 6 }} key={name}>
-                                                    <TextField
-                                                        name={name}
-                                                        label={label}
-                                                        value={values[name]}
-                                                        onChange={handleChange}
-                                                        fullWidth
-                                                        size="small"
-                                                        InputProps={{
-                                                            startAdornment: name !== "grandTotal" ? (
-                                                                <InputAdornment position="start">₹</InputAdornment>
-                                                            ) : null,
-                                                        }}
-                                                    />
-                                                </Grid>
-                                            ))}
+                                        <Grid size={{ xs: 12 }} mb={2}>
+                                            <TextField
+                                                name="insVppAmount"
+                                                label="INS / VPP Amount"
+                                                value={values.insVppAmount || ""}
+                                                onChange={handleChange}
+                                                fullWidth
+                                            />
+                                        </Grid>
+
+                                        <Grid size={{ xs: 12 }} mb={2}>
+                                            <TextField
+                                                name="biltyAmount"
+                                                label="Bilty Amount"
+                                                value={values.biltyAmount}
+                                                fullWidth
+                                                InputProps={{
+                                                    readOnly: true,
+                                                }}
+                                            />
+                                        </Grid>
+
+                                        <Grid size={{ xs: 12 }} mb={2}>
+                                            <TextField
+                                                name="billTotal"
+                                                label="Bill Total"
+                                                value={values.billTotal}
+                                                fullWidth
+                                                InputProps={{
+                                                    readOnly: true,
+                                                }}
+                                            />
+                                        </Grid>
+
+                                        <Grid size={{ xs: 12 }} mb={2}>
+                                            <TextField
+                                                name="sTax"
+                                                label="GST %"
+                                                value={values.sTax}
+                                                onChange={handleChange}
+                                                fullWidth
+                                            />
+                                        </Grid>
+
+                                        <Grid size={{ xs: 12 }} mb={2}>
+                                            <TextField
+                                                name="finalTotal"
+                                                label="Final Total"
+                                                value={values.finalTotal}
+                                                fullWidth
+                                                InputProps={{
+                                                    readOnly: true,
+                                                }}
+                                            />
                                         </Grid>
                                     </Grid>
 

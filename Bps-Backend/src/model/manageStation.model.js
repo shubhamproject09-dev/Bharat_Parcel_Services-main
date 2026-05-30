@@ -9,12 +9,10 @@ const manageStationSchema = new mongoose.Schema({
     contact: {
         type: String,
         required: true,
-        unique: true
     },
     emailId: {
         type: String,
         required: true,
-        unique: true
     },
     address: {
         type: String,
@@ -35,7 +33,6 @@ const manageStationSchema = new mongoose.Schema({
     gst: {
         type: String,
         required: true,
-        unique: true
     },
     stationId: {
         type: String,

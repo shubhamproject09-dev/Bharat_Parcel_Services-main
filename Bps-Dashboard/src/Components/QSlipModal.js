@@ -143,9 +143,16 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
   const sgstAmount = (amount * sgst) / 100;
 
   // Calculate round off
-  const grandTotalBeforeRound = billTotal + sTaxAmount + sgstAmount;
-  const roundedGrandTotal = grandTotal; // API से ही grandTotal लें
-  const roundOff = (roundedGrandTotal - grandTotalBeforeRound).toFixed(2);
+  const grandTotalBeforeRound =
+    billTotal +
+    sTaxAmount +
+    sgstAmount;
+
+  const roundedGrandTotal =
+    Math.round(grandTotalBeforeRound);
+
+  const roundOff =
+    (roundedGrandTotal - grandTotalBeforeRound).toFixed(2);
 
   const paymentType =
     bookingData?.productDetails?.[0]?.topay === "paid"
@@ -699,12 +706,15 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                     backgroundColor: '#ffebee'
                   }}>
                     <TableCell sx={{ fontWeight: 'bold', fontSize: '11px', color: '#d32f2f' }}>GRAND TOTAL:</TableCell>
-                    <TableCell align="right" sx={{
-                      fontWeight: 'bold',
-                      fontSize: '12px',
-                      color: '#d32f2f'
-                    }}>
-                      {formatCurrency(grandTotal)}
+                    <TableCell
+                      align="right"
+                      sx={{
+                        fontWeight: 'bold',
+                        fontSize: '12px',
+                        color: '#d32f2f'
+                      }}
+                    >
+                      {formatCurrency(roundedGrandTotal)}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -1621,12 +1631,14 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                                         ` : ''}
                                         <tr>
                                             <td>Round Off:</td>
-                                            <td align="right">${formatCurrency(roundOff)}</td>
+                                         <td align="right">${formatCurrency(Number(roundOff))}</td>
                                         </tr>
                                         <tr class="grand-total-row">
-                                            <td><strong>GRAND TOTAL:</strong></td>
-                                            <td align="right"><strong>${formatCurrency(grandTotal)}</strong></td>
-                                        </tr>
+    <td><strong>GRAND TOTAL:</strong></td>
+    <td align="right">
+        <strong>${formatCurrency(roundedGrandTotal)}</strong>
+    </td>
+</tr>
                                     </table>
                                 </div>
                             </div>
@@ -1843,12 +1855,14 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                                         ` : ''}
                                         <tr>
                                             <td>Round Off:</td>
-                                            <td align="right">${formatCurrency(roundOff)}</td>
+                                          <td align="right">${formatCurrency(Number(roundOff))}</td>
                                         </tr>
-                                        <tr class="grand-total-row">
-                                            <td><strong>GRAND TOTAL:</strong></td>
-                                            <td align="right"><strong>${formatCurrency(grandTotal)}</strong></td>
-                                        </tr>
+                                       <tr class="grand-total-row">
+    <td><strong>GRAND TOTAL:</strong></td>
+    <td align="right">
+        <strong>${formatCurrency(roundedGrandTotal)}</strong>
+    </td>
+</tr>
                                     </table>
                                 </div>
                             </div>

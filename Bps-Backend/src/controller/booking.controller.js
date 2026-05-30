@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import InvoiceHistory from "../model/invoiceHistory.model.js";
 import { Invoice } from "../model/Invoice.js";
+import CAReportHistory from "../model/caReportHistory.model.js";
 async function resolveStation(name) {
   const station = await Station.findOne({ stationName: new RegExp(`^${name}$`, 'i') });
   if (!station) throw new Error(`Station "${name}" not found`);
@@ -1072,7 +1073,8 @@ export const getBookingSummaryByDate = async (req, res) => {
         $gte: from,
         $lte: to
       },
-      totalCancelled: { $eq: 0 }
+      totalCancelled: { $eq: 0 },
+      isDeleted: false
     };
 
     if (user.role === "supervisor") {
@@ -1434,7 +1436,7 @@ export const getCADetailsSummary = async (req, res) => {
 
 export const generateInvoiceByCustomer = async (req, res) => {
   try {
-    const { customerName, fromDate, toDate, invoiceType } = req.body;
+    const { customerName, fromDate, toDate, invoiceDate, invoiceType } = req.body;
 
     if (!customerName || !fromDate || !toDate) {
       return res.status(400).json({ message: "Required fields missing" });
@@ -1457,7 +1459,7 @@ export const generateInvoiceByCustomer = async (req, res) => {
       "items.toPay": invoiceType
     };
 
-    // ✅ supervisor => only own station bookings
+    // ✅ supervisor => station-wise invoice access
     if (loggedInUser.role === "supervisor") {
 
       const station = await Station.findOne({
@@ -1470,7 +1472,40 @@ export const generateInvoiceByCustomer = async (req, res) => {
         });
       }
 
-      bookingFilter.startStation = station._id;
+      // DELHI supervisor can generate AGRA invoices also
+      if (
+        loggedInUser.startStation
+          ?.toUpperCase() === "DELHI"
+      ) {
+
+        const agraStation =
+          await Station.findOne({
+            stationName: /AGRA/i
+          });
+
+        const stationIds = [
+          station._id
+        ];
+
+        if (agraStation) {
+          stationIds.push(
+            agraStation._id
+          );
+        }
+
+        bookingFilter.startStation = {
+          $in: stationIds
+        };
+
+      }
+
+      // All other supervisors → only own station
+      else {
+
+        bookingFilter.startStation =
+          station._id;
+
+      }
     }
 
     // ✅ final bookings
@@ -1486,13 +1521,15 @@ export const generateInvoiceByCustomer = async (req, res) => {
 
     const search = normalize(customerName);
 
-    // 2️⃣ Decide BILL TO per booking
     const invoiceBookings = bookings.map(b => {
       const item = b.items?.[0];
       if (!item) return null;
 
       // PAID → Sender
-      if (item.toPay === "paid" && normalize(b.senderName).includes(search)) {
+      if (
+        String(item.toPay).toLowerCase().trim() === "paid" &&
+        normalize(b.senderName) === search
+      ) {
         return {
           ...b.toObject(),
           finalAmount: b.grandTotal || 0,
@@ -1503,7 +1540,10 @@ export const generateInvoiceByCustomer = async (req, res) => {
       }
 
       // TOPAY → Receiver
-      if (item.toPay === "toPay" && normalize(b.receiverName).includes(search)) {
+      if (
+        String(item.toPay).toLowerCase().trim() === "topay" &&
+        normalize(b.receiverName) === search
+      ) {
         return {
           ...b.toObject(),
           billToName: b.receiverName,
@@ -1512,19 +1552,8 @@ export const generateInvoiceByCustomer = async (req, res) => {
         };
       }
 
-      // TOPAY → sender select kare, receiver bill bane
-      // if (item.toPay === "toPay" && normalize(b.senderName).includes(search)) {
-      //   return {
-      //     ...b.toObject(),
-      //     billToName: b.receiverName,
-      //     billToAddress: b.receiverLocality,
-      //     billToGst: b.receiverGgt,
-      //   };
-      // }
-
       return null;
-    })
-      .filter(Boolean);
+    }).filter(Boolean);
 
     if (!invoiceBookings.length) {
       return res.status(404).json({
@@ -1553,12 +1582,25 @@ export const generateInvoiceByCustomer = async (req, res) => {
     }
 
     // 3️⃣ Invoice number
-    const invoiceNo = await generateInvoiceNumber(
-      invoiceBookings[0]?.startStation?.stationName || "DEL"
-    );
+    let invoiceStation =
+      invoiceBookings[0]?.startStation?.stationName || "DEL";
+
+    // AGRA invoices use DELHI series
+    if (
+      invoiceStation?.toUpperCase() === "AGRA"
+    ) {
+      invoiceStation = "DELHI";
+    }
+
+    const invoiceNo =
+      await generateInvoiceNumber(
+        invoiceStation
+      );
     //////// SAVE MASTER INVOICE ////////
 
-    const billDate = new Date();
+    const billDate = invoiceDate
+      ? new Date(invoiceDate)
+      : new Date();
 
     // 4️⃣ Generate PDF
     const pdfBuffer = await generateInvoicePDF({
@@ -1603,15 +1645,33 @@ export const generateInvoiceByCustomer = async (req, res) => {
 
     //////// SAVE MASTER INVOICE ////////
 
+    // DELHI handles AGRA invoices also
+
+    let finalStation =
+      invoiceBookings[0].startStation;
+
+    if (
+      finalStation?.stationName
+        ?.toUpperCase() === "AGRA"
+    ) {
+
+      finalStation =
+        await Station.findOne({
+          stationName: /DELHI/i
+        });
+    }
+
     await Invoice.create({
 
       invoiceNumber: invoiceNo,
 
+      invoiceDate: billDate,
+
       stationId:
-        invoiceBookings[0].startStation._id,
+        finalStation._id,
 
       stationCode:
-        invoiceBookings[0].startStation.stationName,
+        finalStation.stationName,
 
       customerId:
         invoiceBookings[0].customerId,
@@ -2285,3 +2345,268 @@ export const receiveBookingToPayAmount =
 
   });
 
+export const generateCAReport = async (req, res) => {
+
+  try {
+
+    const { fromDate, toDate } = req.body;
+
+    if (!fromDate || !toDate) {
+
+      return res.status(400).json({
+        message: "fromDate and toDate required"
+      });
+    }
+
+    const from = new Date(fromDate);
+    from.setHours(0, 0, 0, 0);
+
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+
+    // =========================
+    // FILTER
+    // =========================
+
+    let filter = {
+
+      fromDate: {
+        $gte: from,
+      },
+
+      toDate: {
+        $lte: to
+      }
+
+    };
+
+    // =========================
+    // SUPERVISOR STATION FILTER
+    // =========================
+
+    if (req.user.role === "supervisor") {
+
+      const station =
+        await Station.findOne({
+          stationName:
+            req.user.startStation
+        });
+
+      if (!station) {
+
+        return res.status(404).json({
+          message: "Station not found"
+        });
+      }
+
+      // DELHI supervisor => AGRA included
+
+      if (
+        req.user.startStation
+          ?.toUpperCase() === "DELHI"
+      ) {
+
+        const agraStation =
+          await Station.findOne({
+            stationName: /AGRA/i
+          });
+
+        const stationIds = [
+          station._id
+        ];
+
+        if (agraStation) {
+
+          stationIds.push(
+            agraStation._id
+          );
+        }
+
+        filter.stationId = {
+          $in: stationIds
+        };
+
+      } else {
+
+        filter.stationId =
+          station._id;
+      }
+    }
+
+    // =========================
+    // GET INVOICES
+    // =========================
+
+    const invoices =
+      await Invoice.find(filter)
+
+        .populate("customerId")
+
+        .populate("bookingIds")
+
+        .sort({ invoiceNumber: 1 });
+
+    // =========================
+    // REPORT DATA
+    // =========================
+
+    const reportData =
+      invoices.map((inv, index) => {
+
+        // ✅ SAME AS INVOICE
+
+        const totalAmount =
+          inv.bookingIds.reduce(
+            (sum, b) =>
+              sum + (b.billTotal || 0),
+            0
+          );
+
+        // ✅ FIXED BILTY
+
+        const biltyAmount = 20;
+
+        // ✅ SAME GST AS INVOICE
+
+        const gstAmount =
+          inv.bookingIds.reduce(
+            (sum, b) => {
+
+              return (
+                sum +
+                (
+                  (b.grandTotal || 0)
+                  -
+                  (b.billTotal || 0)
+                )
+              );
+
+            },
+            0
+          );
+
+        // ✅ SAME GRAND TOTAL AS INVOICE
+
+        const grandTotal =
+          inv.bookingIds.reduce(
+            (sum, b) =>
+              sum + (b.grandTotal || 0),
+            0
+          );
+
+        return {
+
+          sNo: index + 1,
+
+          invoiceNumber:
+            inv.invoiceNumber || "-",
+
+          // ✅ paid => sender
+          // ✅ topay => receiver
+
+          billName:
+
+            inv.invoiceType === "toPay"
+
+              ? inv.bookingIds?.[0]
+                ?.receiverName || "-"
+
+              : inv.bookingIds?.[0]
+                ?.senderName || "-",
+
+          gstNo:
+
+            inv.invoiceType === "toPay"
+
+              ? inv.bookingIds?.[0]
+                ?.receiverGgt || "-"
+
+              : inv.bookingIds?.[0]
+                ?.senderGgt || "-",
+
+          totalAmount,
+
+          biltyAmount,
+
+          gstAmount,
+
+          grandTotal,
+
+          bookingCount:
+            inv.bookingIds?.length || 0,
+
+          invoiceDate:
+            moment(inv.invoiceDate)
+              .format("DD-MM-YYYY")
+        };
+      });
+
+    // =========================
+    // SAVE HISTORY
+    // =========================
+
+    await CAReportHistory.create({
+
+      fromDate,
+
+      toDate,
+
+      downloadedBy:
+        req.user._id,
+
+      totalRecords:
+        reportData.length,
+
+      fileName:
+        `CA_Report_${Date.now()}`
+    });
+
+    // =========================
+    // RESPONSE
+    // =========================
+
+    res.status(200).json({
+
+      success: true,
+
+      count:
+        reportData.length,
+
+      data:
+        reportData
+    });
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).json({
+      message: err.message
+    });
+  }
+};
+
+export const getCAReportHistory = async (req, res) => {
+
+  try {
+
+    const history =
+      await CAReportHistory.find()
+        .populate(
+          "downloadedBy",
+          "firstName lastName"
+        )
+        .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: history
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      message: err.message
+    });
+  }
+};

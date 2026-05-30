@@ -34,8 +34,12 @@ import {
   getInvoiceHistory,
   receiveBookingToPayAmount,
   getPaidInvoiceHistory,
-  getToPayInvoiceHistory
+  getToPayInvoiceHistory,
+  generateCAReport,
+  getCAReportHistory
 } from '../controller/booking.controller.js';
+import { regenerateInvoicePdf }
+  from "../controller/regenerateInvoice.controller.js";
 import { upload } from "../middleware/multer.middleware.js";
 import { parseFormData } from "../middleware/multerParser.middleware.js";
 import { verifyJwt } from '../middleware/auth.middleware.js'
@@ -59,6 +63,10 @@ router.patch(
   '/receive-payment/:bookingId',
   verifyJwt,
   receiveBookingToPayAmount
+);
+router.get(
+  "/regenerate-invoice/:id",
+  regenerateInvoicePdf
 );
 //  CRUD routes AFTER static routes
 router.post('/public', createPublicBooking);
@@ -84,6 +92,17 @@ router.get(
   "/invoice-history-topay",
   verifyJwt,
   getToPayInvoiceHistory
+);
+router.post(
+  "/ca-report",
+  verifyJwt,
+  generateCAReport
+);
+
+router.get(
+  "/ca-report-history",
+  verifyJwt,
+  getCAReportHistory
 );
 router.get('/:id', viewBooking);           // View by bookingId (not _id!)
 router.put('/:id', updateBooking);         // Update by bookingId

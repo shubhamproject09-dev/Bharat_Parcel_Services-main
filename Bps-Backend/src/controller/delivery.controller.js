@@ -490,10 +490,27 @@ export const listFinalDeliveries = asyncHandler(async (req, res) => {
   let filter = { status: "Final Delivery" };
 
   if (req.user.role === "supervisor") {
-    filter.$or = [
-      { pickup: req.user.startStation },
-      { drop: req.user.startStation }
-    ];
+
+    // DELHI supervisor can also see AGRA deliveries
+    if (
+      req.user.startStation?.toUpperCase() === "DELHI"
+    ) {
+
+      filter.$or = [
+        { pickup: "DELHI" },
+        { drop: "DELHI" },
+        { pickup: "AGRA" },
+        { drop: "AGRA" }
+      ];
+
+    } else {
+
+      filter.$or = [
+        { pickup: req.user.startStation },
+        { drop: req.user.startStation }
+      ];
+
+    }
   }
 
   const deliveries = await Delivery.find(filter)
@@ -568,10 +585,26 @@ export const getPendingInvoiceDeliveries =
     // ✅ supervisor wise filter
     if (req.user.role === "supervisor") {
 
-      filter.$or = [
-        { pickup: req.user.startStation },
-        { drop: req.user.startStation }
-      ];
+      // DELHI supervisor can also see AGRA pending invoices
+      if (
+        req.user.startStation?.toUpperCase() === "DELHI"
+      ) {
+
+        filter.$or = [
+          { pickup: "DELHI" },
+          { drop: "DELHI" },
+          { pickup: "AGRA" },
+          { drop: "AGRA" }
+        ];
+
+      } else {
+
+        filter.$or = [
+          { pickup: req.user.startStation },
+          { drop: req.user.startStation }
+        ];
+
+      }
     }
 
     const deliveries =
@@ -647,21 +680,37 @@ export const getPendingInvoiceDeliveries =
 
         if (req.user.role === "supervisor") {
 
-          const stationCode =
-            req.user.startStation
-              ?.substring(0, 3)
-              ?.toUpperCase();
-
           const biltyNo =
             d.bookingId?.items?.[0]
               ?.receiptNo || "";
 
+          // DELHI supervisor can also see AGRA bilty
           if (
-            !biltyNo.includes(
-              `BPS-${stationCode}`
-            )
+            req.user.startStation?.toUpperCase() === "DELHI"
           ) {
-            return false;
+
+            if (
+              !biltyNo.includes("BPS-DEL") &&
+              !biltyNo.includes("BPS-AGR")
+            ) {
+              return false;
+            }
+
+          } else {
+
+            const stationCode =
+              req.user.startStation
+                ?.substring(0, 3)
+                ?.toUpperCase();
+
+            if (
+              !biltyNo.includes(
+                `BPS-${stationCode}`
+              )
+            ) {
+              return false;
+            }
+
           }
         }
 

@@ -209,20 +209,29 @@ const ViewQuotationBtDate = () => {
 
             totalPaid: filteredBookings.reduce((acc, b) => {
                 const product = b.productDetails?.[0];
+
                 return product?.topay === "paid"
-                    ? acc + Number(b.grandTotal || 0)
+                    ? acc +
+                    Number(b.grandTotal || 0) +
+                    Number(b.insVppAmount || 0)
                     : acc;
             }, 0),
 
             totalToPay: filteredBookings.reduce((acc, b) => {
                 const product = b.productDetails?.[0];
+
                 return product?.topay === "toPay"
-                    ? acc + Number(b.grandTotal || 0)
+                    ? acc +
+                    Number(b.grandTotal || 0) +
+                    Number(b.insVppAmount || 0)
                     : acc;
             }, 0),
 
             totalValue: filteredBookings.reduce(
-                (acc, b) => acc + Number(b.grandTotal || 0),
+                (acc, b) =>
+                    acc +
+                    Number(b.grandTotal || 0) +
+                    Number(b.insVppAmount || 0),
                 0
             ),
 
@@ -482,7 +491,6 @@ const ViewQuotationBtDate = () => {
                 ["Total Items", summary.totalItems],
                 ["Total Paid Amount", summary.totalPaid],
                 ["Total To Pay Amount", summary.totalToPay],
-                ["Total INS / VPP", summary.totalInsVpp],
                 ["Grand Total Amount", summary.totalValue],
                 ["Fully Paid Count", summary.paymentBreakdown.fullyPaid],
                 ["ToPay Received",
@@ -571,7 +579,6 @@ const ViewQuotationBtDate = () => {
         data.push({ "Booking ID": "Total Items", "Total": summary.totalItems });
         data.push({ "Booking ID": "Total Paid Amount", "Total": Number(summary.totalPaid) });
         data.push({ "Booking ID": "Total To Pay Amount", "Total": Number(summary.totalToPay) });
-        data.push({ "Booking ID": "Total INS / VPP", "Total": Number(summary.totalInsVpp) });
         data.push({ "Booking ID": "Grand Total Amount", "Total": Number(summary.totalValue) });
         data.push({ "Booking ID": "Fully Paid Count", "Total": summary.paymentBreakdown.fullyPaid });
         data.push({ "Booking ID": "ToPay Received", "Total": summary.paymentBreakdown.partiallyPaid });
@@ -1046,13 +1053,10 @@ const ViewQuotationBtDate = () => {
 
                                             <TableRow>
                                                 <TableCell><strong>ToPay Amount</strong></TableCell>
-                                                <TableCell align="right">₹{summary.balanceDue.toLocaleString()}</TableCell>
+                                                <TableCell align="right">
+                                                    ₹{summary.totalToPay.toLocaleString()}
+                                                </TableCell>
                                             </TableRow>
-                                            <TableRow>
-                                                <TableCell><strong>Ins / Vpp Total</strong></TableCell>
-                                                <TableCell align="right">₹{summary.totalInsVpp.toLocaleString()}</TableCell>
-                                            </TableRow>
-
                                             <TableRow>
                                                 <TableCell><strong>Total Value</strong></TableCell>
                                                 <TableCell align="right">₹{summary.totalValue.toLocaleString()}</TableCell>

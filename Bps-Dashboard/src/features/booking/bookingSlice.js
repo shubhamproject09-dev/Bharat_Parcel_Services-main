@@ -243,6 +243,60 @@ export const caReport = createAsyncThunk(
   }
 )
 
+export const generateCAReport = createAsyncThunk(
+  "booking/generateCAReport",
+
+  async ({ fromDate, toDate }, { rejectWithValue }) => {
+
+    try {
+
+      const res = await axios.post(
+        `${BASE_URL}/ca-report`,
+        {
+          fromDate,
+          toDate
+        }
+      );
+
+      return res.data.data;
+
+    } catch (err) {
+
+      return rejectWithValue(
+        err.response?.data?.message ||
+        "Failed to generate CA report"
+      );
+
+    }
+
+  }
+);
+
+export const fetchCAReportHistory = createAsyncThunk(
+  "booking/fetchCAReportHistory",
+
+  async (_, { rejectWithValue }) => {
+
+    try {
+
+      const res = await axios.get(
+        `${BASE_URL}/ca-report-history`
+      );
+
+      return res.data.data;
+
+    } catch (err) {
+
+      return rejectWithValue(
+        err.response?.data?.message ||
+        "Failed to fetch CA report history"
+      );
+
+    }
+
+  }
+);
+
 export const fetchPendingCustomers = createAsyncThunk(
   "pendingCustomers/fetchPendingCustomers",
   async (_, { rejectWithValue }) => {
@@ -514,7 +568,11 @@ const initialState = {
   receiptPreview: "",
   receiptPreviewStatus: "idle",
   receiptPreviewError: null,
+  caReportData: [],
+  caReportHistory: [],
 
+  caReportLoading: false,
+  caReportError: null,
 
 };
 const bookingSlice = createSlice({
@@ -991,6 +1049,58 @@ const bookingSlice = createSlice({
       .addCase(fetchInvoiceHistory.rejected, (state, action) => {
         state.invoiceHistoryLoading = false;
         state.invoiceHistoryError = action.payload;
+      })
+      // ==========================
+      // CA REPORT
+      // ==========================
+
+      .addCase(generateCAReport.pending, (state) => {
+
+        state.caReportLoading = true;
+        state.caReportError = null;
+
+      })
+
+      .addCase(generateCAReport.fulfilled, (state, action) => {
+
+        state.caReportLoading = false;
+
+        state.caReportData = action.payload;
+
+      })
+
+      .addCase(generateCAReport.rejected, (state, action) => {
+
+        state.caReportLoading = false;
+
+        state.caReportError = action.payload;
+
+      })
+
+      // ==========================
+      // CA REPORT HISTORY
+      // ==========================
+
+      .addCase(fetchCAReportHistory.pending, (state) => {
+
+        state.loading = true;
+
+      })
+
+      .addCase(fetchCAReportHistory.fulfilled, (state, action) => {
+
+        state.loading = false;
+
+        state.caReportHistory = action.payload;
+
+      })
+
+      .addCase(fetchCAReportHistory.rejected, (state, action) => {
+
+        state.loading = false;
+
+        state.error = action.payload;
+
       })
 
   }

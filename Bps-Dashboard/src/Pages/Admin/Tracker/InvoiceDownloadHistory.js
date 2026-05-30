@@ -4,6 +4,7 @@ import React,
 
 import {
     Dialog,
+    TextField,
     DialogTitle,
     DialogContent,
     Button,
@@ -36,6 +37,8 @@ export default function InvoiceDownloadHistory() {
 
     const [rowsPerPage, setRowsPerPage] =
         useState(10);
+    const [search, setSearch] =
+        useState("");
 
     useEffect(() => {
 
@@ -93,6 +96,40 @@ export default function InvoiceDownloadHistory() {
             setPage(0);
 
         };
+
+    const filteredData =
+        data.filter((row) => {
+
+            const customerName =
+                row.invoiceType === "toPay"
+
+                    ? row.receiverName || ""
+
+                    : [
+                        row.customerId?.firstName,
+                        row.customerId?.middleName,
+                        row.customerId?.lastName
+                    ]
+                        .filter(Boolean)
+                        .join(" ");
+
+            return (
+
+                row.invoiceNumber
+                    ?.toLowerCase()
+                    .includes(
+                        search.toLowerCase()
+                    )
+
+                ||
+
+                customerName
+                    ?.toLowerCase()
+                    .includes(
+                        search.toLowerCase()
+                    )
+            );
+        });
 
     const fetchHistory =
         async (selectedType) => {
@@ -174,6 +211,23 @@ export default function InvoiceDownloadHistory() {
                     </Button>
 
                 </Stack>
+                <TextField
+
+                    fullWidth
+
+                    size="small"
+
+                    label="Search by Invoice No / Customer Name"
+
+                    value={search}
+
+                    onChange={(e) =>
+                        setSearch(e.target.value)
+                    }
+
+                    sx={{ mb: 2 }}
+
+                />
 
                 <Table>
 
@@ -218,7 +272,7 @@ export default function InvoiceDownloadHistory() {
 
                     <TableBody>
 
-                        {data
+                        {filteredData
                             .slice(
 
                                 page * rowsPerPage,
@@ -337,7 +391,7 @@ export default function InvoiceDownloadHistory() {
 
                     component="div"
 
-                    count={data.length}
+                    count={filteredData.length}
 
                     page={page}
 

@@ -38,8 +38,7 @@ const formatQuotations = (quotations) => {
       || (q.customerId
         ? `${q.customerId.firstName} ${q.customerId.lastName}`
         : `${q.firstName || ""} ${q.lastName || ""}`.trim()),
-    "pickup": q.startStation?.stationName || q.startStationName || 'N/A',
-    "": "",
+    "pickup": q.startStationName || q.startStation?.stationName || 'N/A',
     "Name (Drop)": q.toCustomerName || "",
     "drop": q.endStation || "",
     "Contact": q.mobile || "",
@@ -297,7 +296,8 @@ export const getBookingSummaryByDate = async (req, res) => {
 
     const query = {
       quotationDate: { $gte: from, $lte: to },
-      totalCancelled: { $eq: 0 }
+      totalCancelled: { $eq: 0 },
+      isDeleted: false
     };
 
     if (user.role === "supervisor") {

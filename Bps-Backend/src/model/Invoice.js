@@ -9,6 +9,9 @@ const InvoiceSchema = new mongoose.Schema(
         customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
         fromDate: { type: Date, required: true },
         toDate: { type: Date, required: true },
+        invoiceDate: {
+            type: Date
+        },
         bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Booking" }],
         totals: {
             subtotal: { type: Number, default: 0 },

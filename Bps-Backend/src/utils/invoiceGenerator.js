@@ -108,7 +108,7 @@ export const generateInvoicePDF = async (data) => {
 
     const doc = new PDFDocument({
         size: "A4",
-        margin: 40,
+        margin: 25,
         info: {
             Title: `Invoice ${invoiceNo}`,
             Author: 'Bharat Parcel Services',
@@ -122,8 +122,8 @@ export const generateInvoicePDF = async (data) => {
         doc.on("end", () => resolve(Buffer.concat(buffers)));
 
         let y = 40;
-        const PAGE_LEFT = 40;
-        const PAGE_RIGHT = doc.page.width - 40; // dynamic right
+        const PAGE_LEFT = 25;
+        const PAGE_RIGHT = doc.page.width - 25;
         const PAGE_WIDTH = PAGE_RIGHT - PAGE_LEFT;
 
         // ================= HEADER =================
@@ -233,7 +233,12 @@ export const generateInvoicePDF = async (data) => {
         // Invoice Date
         rightY += 4;
         doc.font("Helvetica").fontSize(9)
-            .text(`Invoice Date: 30-04-2026`, 305, rightY, { width: 240 });
+            .text(
+                `Invoice Date: ${formatDate(billDate)}`,
+                305,
+                rightY,
+                { width: 240 }
+            );
 
         rightY += 12;
         doc.moveTo(305, rightY).lineTo(PAGE_RIGHT, rightY).lineWidth(0.3).stroke();
@@ -267,13 +272,14 @@ export const generateInvoicePDF = async (data) => {
             { label: "INS/VPP", width: 42 },
             { label: "AMOUNT", width: 45 },
             { label: "GST", width: 56 },
+            { label: "BILTY", width: 30 },
             { label: "TOTAL", width: 45 }
         ];
 
         // Header with borders (white background, black text)
         const tableWidth = PAGE_WIDTH;
         const pageWidth = doc.page.width;   // 595
-        const startX = 40; // center align
+        const startX = PAGE_LEFT;
         doc.rect(startX, y, tableWidth, 30).lineWidth(1).strokeColor('black').stroke();
         let x = startX;
         doc.font("Helvetica-Bold").fontSize(9).fillColor('black');
@@ -298,14 +304,23 @@ export const generateInvoicePDF = async (data) => {
 
             const qty = Number(item.quantity || 0);
             const wt = Number(item.weight || 0);
-            const insVpp = Number(item.insurance || 0) + Number(item.vppAmount || 0);
+            const insVpp = Number(b.ins_vpp || 0);
 
-            // ✅ DB se directly values lo
             const freight = Number(b.freight || 0);
-            const total = Number(b.grandTotal || 0);
+            const biltyCharge = 20;
 
-            // GST derive karo (difference se)
-            const gstAmount = total - freight - insVpp;
+            // GST Base = Amount + INS/VPP
+            const taxableAmount = freight + insVpp;
+
+            // GST 18%
+            const gstAmount = taxableAmount * 0.18;
+
+            // Row Total
+            const total =
+                freight +
+                insVpp +
+                gstAmount +
+                biltyCharge;
 
             // label
             const payType = item.toPay;
@@ -328,6 +343,7 @@ export const generateInvoicePDF = async (data) => {
                 insVpp.toFixed(2),          // INS/VPP
                 freight.toFixed(2),         // FREIGHT
                 gstLabel,  // GST
+                biltyCharge.toFixed(2),
                 total.toFixed(2)            // TOTAL
             ];
 
@@ -387,7 +403,7 @@ export const generateInvoicePDF = async (data) => {
 
                 // Left align for text-heavy columns
                 if ([3, 4].includes(j)) align = "left";     // SENDER, RECEIVER
-                if (j === 9) align = "center";              // GST
+                if (j === 9 || j === 10) align = "center";              // GST
 
                 doc.text(String(t), xx + 6, y + 6, {
                     width: widths[j] - 12,
@@ -401,17 +417,31 @@ export const generateInvoicePDF = async (data) => {
                 xx += widths[j];
             });
 
-            totalAmount += freight;
+            totalAmount += (freight + insVpp);
             totalIgst += gstAmount;
             y += hgt;
         });
 
         // ================= ROUND OFF CALCULATION =================
-        const gross = bookings.reduce((sum, b) => sum + (b.grandTotal || 0), 0);
+        // ✅ TOTAL BILTY CHARGE
+        const totalBiltyCharge = bookings.length * 20;
+        const gross =
+            totalAmount +
+            totalIgst +
+            totalBiltyCharge;
         const roundedGrand = Math.round(gross);       // nearest rupee
         const roundOff = (roundedGrand - gross).toFixed(2);  // + / - difference
 
         // ================= TOTAL SECTION =================
+
+        const firstPayType = String(
+            bookings?.[0]?.items?.[0]?.toPay || ""
+        ).toLowerCase().trim();
+
+        const isIGST = firstPayType === "topay";
+
+        const totalBoxHeight = isIGST ? 120 : 140;
+
         if (y + 100 > doc.page.height - 40) {
 
             doc.rect(PAGE_LEFT, 40, PAGE_WIDTH, y - 40).stroke();
@@ -419,15 +449,16 @@ export const generateInvoicePDF = async (data) => {
             doc.addPage();
             y = 60;
         }
+
         // Total box
         const totalBoxWidth = 220;
         const totalBoxX = PAGE_RIGHT - totalBoxWidth;
 
-        doc.rect(totalBoxX, y, totalBoxWidth, 85).stroke();
+        doc.rect(totalBoxX, y, totalBoxWidth, totalBoxHeight).stroke();
 
         // divider
         doc.moveTo(totalBoxX + 110, y)
-            .lineTo(totalBoxX + 110, y + 85)
+            .lineTo(totalBoxX + 110, y + totalBoxHeight)
             .stroke();
 
         // labels
@@ -437,26 +468,73 @@ export const generateInvoicePDF = async (data) => {
             align: "right"
         });
 
-        doc.text(`GST:`, totalBoxX + 5, y + 35);
-        doc.text(`${totalIgst.toFixed(2)}`, totalBoxX + 110, y + 35, {
-            width: 100,
-            align: "right"
-        });
+        if (isIGST) {
 
-        doc.text(`ROUND OFF:`, totalBoxX + 5, y + 50);
-        doc.text(`${roundOff}`, totalBoxX + 110, y + 50, {
-            width: 100,
-            align: "right"
-        });
+            doc.text(`IGST 18%:`, totalBoxX + 5, y + 35);
+            doc.text(`${totalIgst.toFixed(2)}`, totalBoxX + 110, y + 35, {
+                width: 100,
+                align: "right"
+            });
 
-        doc.font("Helvetica-Bold").fontSize(12);
-        doc.text(`GRAND TOTAL:`, totalBoxX + 5, y + 65);
-        doc.text(`${roundedGrand.toFixed(2)}`, totalBoxX + 110, y + 65, {
-            width: 100,
-            align: "right"
-        });
+            doc.text(`BILTY CHARGE:`, totalBoxX + 5, y + 55);
+            doc.text(`${totalBiltyCharge.toFixed(2)}`, totalBoxX + 110, y + 55, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.text(`ROUND OFF:`, totalBoxX + 5, y + 75);
+            doc.text(`${roundOff}`, totalBoxX + 110, y + 75, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.font("Helvetica-Bold").fontSize(12);
+
+            doc.text(`GRAND TOTAL:`, totalBoxX + 5, y + 95);
+            doc.text(`${roundedGrand.toFixed(2)}`, totalBoxX + 110, y + 95, {
+                width: 100,
+                align: "right"
+            });
+
+        } else {
+
+            const cgst = totalIgst / 2;
+            const sgst = totalIgst / 2;
+
+            doc.text(`CGST 9%:`, totalBoxX + 5, y + 35);
+            doc.text(`${cgst.toFixed(2)}`, totalBoxX + 110, y + 35, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.text(`SGST 9%:`, totalBoxX + 5, y + 55);
+            doc.text(`${sgst.toFixed(2)}`, totalBoxX + 110, y + 55, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.text(`BILTY CHARGE:`, totalBoxX + 5, y + 75);
+            doc.text(`${totalBiltyCharge.toFixed(2)}`, totalBoxX + 110, y + 75, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.text(`ROUND OFF:`, totalBoxX + 5, y + 95);
+            doc.text(`${roundOff}`, totalBoxX + 110, y + 95, {
+                width: 100,
+                align: "right"
+            });
+
+            doc.font("Helvetica-Bold").fontSize(12);
+
+            doc.text(`GRAND TOTAL:`, totalBoxX + 5, y + 115);
+            doc.text(`${roundedGrand.toFixed(2)}`, totalBoxX + 110, y + 115, {
+                width: 100,
+                align: "right"
+            });
+        }
         // ================= FOOTER =================
-        y += 85;
+        y += totalBoxHeight;
         if (y + 150 > doc.page.height - 40) {
 
             // close current page border
@@ -506,7 +584,7 @@ export const generateInvoicePDF = async (data) => {
 
         doc.font("Helvetica").fontSize(7)
             .text(
-                `Invoice ${invoiceNo} | Generated on: 30-04-2026`,
+                `Invoice ${invoiceNo} | Generated on: ${formatDate(billDate)}`,
                 40,
                 y + 10,
                 { width: 520, align: "center" }

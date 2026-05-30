@@ -95,7 +95,7 @@ const calculateTotals = (values) => {
   const items = values.items || [];
   const biltyAmount = 20;
 
-  // Items total
+  // Freight Total
   const itemTotal = items.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
@@ -104,20 +104,26 @@ const calculateTotals = (values) => {
   const freight = Number(values.freight || itemTotal);
   const ins_vpp = Number(values.ins_vpp || 0);
 
-  // ✅ GST only on freight
-  const taxableAmount = freight;
+  // ✅ GST on Freight + INS/VPP
+  const taxableAmount = freight + ins_vpp;
 
-  // ❌ bilty & ins_vpp non-taxable
-  const billTotal = freight + biltyAmount + ins_vpp;
+  // Bill Total before GST
+  const billTotal = taxableAmount + biltyAmount;
 
+  // GST
   const cgst = (taxableAmount * Number(values.cgst || 0)) / 100;
   const sgst = (taxableAmount * Number(values.sgst || 0)) / 100;
   const igst = (taxableAmount * Number(values.igst || 0)) / 100;
 
-  const totalBeforeRound = billTotal + cgst + sgst + igst;
+  // Final Total
+  const totalBeforeRound =
+    billTotal + cgst + sgst + igst;
 
   const rounded = Math.round(totalBeforeRound);
-  const roundOff = (rounded - totalBeforeRound).toFixed(2);
+
+  const roundOff = (
+    rounded - totalBeforeRound
+  ).toFixed(2);
 
   return {
     billTotal: billTotal.toFixed(2),

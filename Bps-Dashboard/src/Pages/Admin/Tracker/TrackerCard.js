@@ -32,6 +32,21 @@ import {
     DateRange as DateRangeIcon
 } from "@mui/icons-material";
 
+import {
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    IconButton,
+    Tooltip
+} from "@mui/material";
+
+import {
+    History as HistoryIcon,
+    Assessment as AssessmentIcon,
+    Close as CloseIcon
+} from "@mui/icons-material";
+
 const TrackerCard = () => {
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [fromDate, setFromDate] = useState(null);
@@ -40,6 +55,12 @@ const TrackerCard = () => {
     const [errorMsg, setErrorMsg] = useState("");
     const [invoiceType, setInvoiceType] = useState("paid");
     const [success, setSuccess] = useState(false);
+    const [invoiceDate, setInvoiceDate] = useState(null);
+    const [caModalOpen, setCaModalOpen] = useState(false);
+    const [caFromDate, setCaFromDate] = useState(null);
+    const [caToDate, setCaToDate] = useState(null);
+    const [caLoading, setCaLoading] = useState(false);
+    const [caHistoryOpen, setCaHistoryOpen] = useState(false);
     const [
         historyOpen,
         setHistoryOpen
@@ -55,7 +76,12 @@ const TrackerCard = () => {
     };
 
     const handleGenerateInvoice = async () => {
-        if (!selectedCustomer || !fromDate || !toDate) {
+        if (
+            !selectedCustomer ||
+            !fromDate ||
+            !toDate ||
+            !invoiceDate
+        ) {
             setErrorMsg("Please fill in all fields");
             return;
         }
@@ -79,6 +105,8 @@ const TrackerCard = () => {
                     customerName: selectedCustomer.name,
                     fromDate: formatLocalDate(fromDate),
                     toDate: formatLocalDate(toDate),
+                    invoiceDate:
+                        formatLocalDate(invoiceDate),
                     invoiceType,
                 }),
             });
@@ -106,33 +134,246 @@ const TrackerCard = () => {
         }
     };
 
+    const handleGenerateCAReport = async () => {
+
+        if (!caFromDate || !caToDate) {
+
+            setErrorMsg("Please select from and to date");
+
+            return;
+        }
+
+        try {
+
+            setCaLoading(true);
+
+            const response = await fetch(
+                `${BOOKINGS_API}/ca-report`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json",
+
+                        Authorization:
+                            `Bearer ${localStorage.getItem("authToken")}`
+                    },
+
+                    body: JSON.stringify({
+
+                        fromDate: formatLocalDate(caFromDate),
+
+                        toDate: formatLocalDate(caToDate)
+
+                    })
+                }
+            );
+
+            if (!response.ok) {
+
+                const err = await response.json();
+
+                throw new Error(err.message);
+            }
+
+            const data = await response.json();
+
+            // PDF Generate Frontend Side
+
+            const rows = data.data || [];
+
+            let html = `
+        <html>
+        <head>
+        <title>CA Report</title>
+
+        <style>
+
+        body{
+            font-family: Arial;
+            padding:20px;
+        }
+
+        table{
+            width:100%;
+            border-collapse: collapse;
+        }
+
+        th,td{
+            border:1px solid #ccc;
+            padding:8px;
+            font-size:12px;
+        }
+
+        th{
+            background:#1976d2;
+            color:white;
+        }
+
+        </style>
+        </head>
+        <body>
+
+        <h2>CA REPORT</h2>
+
+        <table>
+
+        <tr>
+            <th>S No</th>
+            <th>Invoice No</th>
+            <th>Bill Name</th>
+            <th>GST No</th>
+           <th>Total Amount</th>
+<th>Bilty Amount</th>
+<th>GST Amount</th>
+<th>Grand Total</th>
+        </tr>
+        `;
+
+            rows.forEach((r) => {
+
+                html += `
+            <tr>
+                <td>${r.sNo}</td>
+                <td>${r.invoiceNumber}</td>
+                <td>${r.billName}</td>
+                <td>${r.gstNo}</td>
+               <td>${r.totalAmount}</td>
+
+<td>${r.biltyAmount}</td>
+
+<td>${r.gstAmount}</td>
+
+<td>${r.grandTotal}</td>
+            </tr>
+            `;
+            });
+
+            html += `
+        </table>
+        </body>
+        </html>
+        `;
+
+            const blob = new Blob(
+                [html],
+                { type: "text/html" }
+            );
+
+            const url =
+                window.URL.createObjectURL(blob);
+
+            const a =
+                document.createElement("a");
+
+            a.href = url;
+
+            a.download =
+                `CA_Report_${Date.now()}.html`;
+
+            document.body.appendChild(a);
+
+            a.click();
+
+            a.remove();
+
+            window.URL.revokeObjectURL(url);
+
+            setCaModalOpen(false);
+
+        } catch (err) {
+
+            setErrorMsg(err.message);
+
+        } finally {
+
+            setCaLoading(false);
+        }
+    };
+
     return (
         <Box>
-            <Button
 
-                variant="contained"
-
-                size="small"
-
-                color="error"
-
-                onClick={() =>
-                    navigate(
-                        "/pending-invoice-bilty"
-                    )
-                }
-
+            <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
                 sx={{
-                    whiteSpace: "nowrap",
-                    minWidth: "180px",
-                    borderRadius: 2
+                    mb: 2
                 }}
-
             >
 
-                Invoice Pending Bilty
+                <Button
 
-            </Button>
+                    variant="contained"
+
+                    size="small"
+
+                    color="error"
+
+                    onClick={() =>
+                        navigate(
+                            "/pending-invoice-bilty"
+                        )
+                    }
+
+                    sx={{
+                        whiteSpace: "nowrap",
+                        minWidth: "180px",
+                        borderRadius: 2
+                    }}
+
+                >
+
+                    Invoice Pending Bilty
+
+                </Button>
+
+                <Stack
+                    direction="row"
+                    spacing={1}
+                >
+
+                    <Button
+                        variant="contained"
+                        color="success"
+
+                        startIcon={<AssessmentIcon />}
+
+                        onClick={() =>
+                            setCaModalOpen(true)
+                        }
+
+                        sx={{
+                            borderRadius: 2,
+                            textTransform: "none",
+                            fontWeight: 600
+                        }}
+                    >
+                        CA Report
+                    </Button>
+
+                    <Button
+                        variant="outlined"
+
+                        startIcon={<HistoryIcon />}
+
+                        onClick={() =>
+                            navigate("/ca-report-history")
+                        }
+
+                        sx={{
+                            borderRadius: 2,
+                            textTransform: "none",
+                            fontWeight: 600
+                        }}
+                    >
+                        CA History
+                    </Button>
+
+                </Stack>
+
+            </Stack>
             <Fade in={true} timeout={800}>
                 <Paper
                     elevation={0}
@@ -312,13 +553,56 @@ const TrackerCard = () => {
                                 />
                             </Grid>
 
-                            <Grid size={{ xs: 12 }}>
-                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 500, mb: 0.5, display: "block" }}>
-                                    Date Range
-                                </Typography>
-                            </Grid>
-
                             <LocalizationProvider dateAdapter={AdapterDateFns}>
+                                <Grid size={{ xs: 12, md: 6 }}>
+
+                                    <DatePicker
+                                        label="Invoice Date"
+                                        value={invoiceDate}
+
+                                        format="dd-MM-yyyy"
+
+                                        onChange={setInvoiceDate}
+
+                                        slotProps={{
+
+                                            field: {
+                                                clearable: true,
+                                            },
+
+                                            textField: {
+
+                                                fullWidth: true,
+
+                                                variant: "outlined",
+
+                                                size: "small",
+
+                                                placeholder:
+                                                    "Select invoice date",
+
+                                                sx: {
+
+                                                    "& .MuiOutlinedInput-root": {
+
+                                                        backgroundColor:
+                                                            "#ffffff",
+
+                                                        borderRadius: 2,
+                                                    }
+                                                }
+                                            },
+                                        }}
+                                    />
+
+                                </Grid>
+
+                                <Grid size={{ xs: 12 }}>
+                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 500, mb: 0.5, display: "block" }}>
+                                        Date Range
+                                    </Typography>
+                                </Grid>
+
                                 <Grid size={{ xs: 6 }}>
                                     <DatePicker
                                         label="From Date"
@@ -484,6 +768,115 @@ const TrackerCard = () => {
                     </Box>
                 </Paper>
             </Fade>
+            <Dialog
+                open={caModalOpen}
+
+                onClose={() =>
+                    setCaModalOpen(false)
+                }
+
+                maxWidth="sm"
+
+                fullWidth
+            >
+
+                <DialogTitle
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontWeight: 700
+                    }}
+                >
+
+                    Generate CA Report
+
+                    <IconButton
+                        onClick={() =>
+                            setCaModalOpen(false)
+                        }
+                    >
+                        <CloseIcon />
+                    </IconButton>
+
+                </DialogTitle>
+
+                <DialogContent>
+
+                    <LocalizationProvider
+                        dateAdapter={AdapterDateFns}
+                    >
+
+                        <Stack spacing={3} mt={1}>
+
+                            <DatePicker
+                                label="From Date"
+
+                                value={caFromDate}
+
+                                onChange={setCaFromDate}
+
+                                slotProps={{
+                                    textField: {
+                                        fullWidth: true
+                                    }
+                                }}
+                            />
+
+                            <DatePicker
+                                label="To Date"
+
+                                value={caToDate}
+
+                                onChange={setCaToDate}
+
+                                slotProps={{
+                                    textField: {
+                                        fullWidth: true
+                                    }
+                                }}
+                            />
+
+                        </Stack>
+
+                    </LocalizationProvider>
+
+                </DialogContent>
+
+                <DialogActions sx={{ p: 3 }}>
+
+                    <Button
+                        onClick={() =>
+                            setCaModalOpen(false)
+                        }
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+
+                        variant="contained"
+
+                        color="success"
+
+                        onClick={
+                            handleGenerateCAReport
+                        }
+
+                        disabled={caLoading}
+                    >
+
+                        {
+                            caLoading
+                                ? "Generating..."
+                                : "Download PDF"
+                        }
+
+                    </Button>
+
+                </DialogActions>
+
+            </Dialog>
         </Box>
     );
 };

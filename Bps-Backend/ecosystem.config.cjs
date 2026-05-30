@@ -1,9 +1,9 @@
 module.exports = {
     apps: [
         {
-            name: "bharatparcel-api",
+            name: "newBharatParcel-Api",
             script: "index.js",
-            cwd: "/var/www/Bharatparcel/backend",
+            cwd: "/var/www/NewBharatparcel/backend",
             env: {
                 NODE_ENV: "production",
                 CLOUDINARY_CLOUD_NAME: "dcagfm5w0",

@@ -20,6 +20,9 @@ import path from "path";
 import InvoiceHistory from "../model/invoiceHistory.model.js";
 import { Invoice } from "../model/Invoice.js";
 import CAReportHistory from "../model/caReportHistory.model.js";
+import CAReportCounter from "../model/CAReportCounter.js";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 async function resolveStation(name) {
   const station = await Station.findOne({ stationName: new RegExp(`^${name}$`, 'i') });
   if (!station) throw new Error(`Station "${name}" not found`);
@@ -1111,9 +1114,72 @@ export const getBookingSummaryByDate = async (req, res) => {
       };
     });
 
+    let totalPaid = 0;
+    let totalToPay = 0;
+
+    bookings.forEach((booking) => {
+
+      const paidItems =
+        booking.items?.filter(
+          i =>
+            i.toPay?.toLowerCase() === "paid"
+        ) || [];
+
+      const topayItems =
+        booking.items?.filter(
+          i =>
+            i.toPay?.toLowerCase() === "topay"
+        ) || [];
+
+      // Mixed booking
+      if (
+        paidItems.length > 0 &&
+        topayItems.length > 0
+      ) {
+
+        paidItems.forEach(item => {
+
+          totalPaid +=
+            Number(item.amount || 0) +
+            Number(item.insuranceTotalWithGST || 0);
+
+        });
+
+        topayItems.forEach(item => {
+
+          totalToPay +=
+            Number(item.amount || 0) +
+            Number(item.insuranceTotalWithGST || 0);
+
+        });
+
+      }
+
+      // Full Paid Booking
+      else if (
+        booking.paymentStatus === "Paid"
+      ) {
+
+        totalPaid +=
+          Number(
+            booking.grandTotal || 0
+          );
+
+      }
+
+      // Full ToPay Booking
+      else {
+
+        totalToPay +=
+          Number(
+            booking.grandTotal || 0
+          );
+
+      }
+
+    });
+
     // Calculate summary totals
-    const totalPaid = transformedBookings.reduce((s, b) => s + b.paid, 0);
-    const totalToPay = transformedBookings.reduce((s, b) => s + b.toPay, 0);
     const paidBookings = transformedBookings.filter(b => b.paymentStatus === "Paid").length;
     const unpaidBookings = transformedBookings.filter(b => b.paymentStatus === "Unpaid").length;
     const partialBookings = transformedBookings.filter(b => b.paymentStatus === "Partial").length;
@@ -1522,7 +1588,12 @@ export const generateInvoiceByCustomer = async (req, res) => {
     const search = normalize(customerName);
 
     const invoiceBookings = bookings.map(b => {
-      const item = b.items?.[0];
+      const item = b.items?.find(
+        i =>
+          String(i.toPay).toLowerCase().trim() ===
+          String(invoiceType).toLowerCase().trim()
+      );
+
       if (!item) return null;
 
       // PAID → Sender
@@ -1563,10 +1634,23 @@ export const generateInvoiceByCustomer = async (req, res) => {
 
     // 🔥 CHECK ALREADY GENERATED BILTY
 
-    const bookingIds = invoiceBookings.map(b => b._id);
+    const receiptNos = invoiceBookings.flatMap(b =>
+      b.items
+        .filter(
+          i =>
+            String(i.toPay).toLowerCase().trim() ===
+            String(invoiceType).toLowerCase().trim()
+        )
+        .map(i => i.receiptNo)
+    );
 
     const alreadyUsedInvoice = await Invoice.findOne({
-      bookingIds: { $in: bookingIds }
+      generatedBilties: {
+        $elemMatch: {
+          receiptNo: { $in: receiptNos },
+          invoiceType
+        }
+      }
     });
 
     if (alreadyUsedInvoice) {
@@ -1607,6 +1691,7 @@ export const generateInvoiceByCustomer = async (req, res) => {
       bookings: invoiceBookings,
       invoiceNo,
       billDate,
+      invoiceType
     });
 
     // ✅ SAVE PDF IN FOLDER
@@ -1661,6 +1746,104 @@ export const generateInvoiceByCustomer = async (req, res) => {
         });
     }
 
+    const calculateInvoiceTotal = (booking) => {
+
+      const item =
+        booking.items?.find(
+          i =>
+            String(i.toPay).toLowerCase().trim() ===
+            String(invoiceType).toLowerCase().trim()
+        ) || {};
+
+      const isPaidInsurance =
+        String(item.toPay).toLowerCase().trim() === "paid" &&
+        Number(item.insuranceAmount || 0) > 0;
+
+      if (isPaidInsurance) {
+        return Number(item.insuranceTotalWithGST || 0);
+      }
+
+      const freight = Number(booking.freight || 0);
+      const insVpp = Number(booking.ins_vpp || 0);
+
+      const gst = (freight + insVpp) * 0.18;
+
+      return freight + insVpp + gst + 20;
+    };
+
+    const calculateSubTotal = (booking) => {
+
+      const item =
+        booking.items?.find(
+          i =>
+            String(i.toPay).toLowerCase().trim() ===
+            String(invoiceType).toLowerCase().trim()
+        ) || {};
+
+      const isPaidInsurance =
+        String(item.toPay).toLowerCase().trim() === "paid" &&
+        Number(item.insuranceAmount || 0) > 0;
+
+      if (isPaidInsurance) {
+        return Number(item.insuranceAmount || 0);
+      }
+
+      return (
+        Number(booking.freight || 0) +
+        Number(booking.ins_vpp || 0)
+      );
+    };
+
+    const calculateTax = (booking) => {
+
+      const item =
+        booking.items?.find(
+          i =>
+            String(i.toPay).toLowerCase().trim() ===
+            String(invoiceType).toLowerCase().trim()
+        ) || {};
+
+      const isPaidInsurance =
+        String(item.toPay).toLowerCase().trim() === "paid" &&
+        Number(item.insuranceAmount || 0) > 0;
+
+      if (isPaidInsurance) {
+
+        return (
+          Number(item.insuranceCgst || 0) +
+          Number(item.insuranceSgst || 0)
+        );
+      }
+
+      return (
+        (
+          Number(booking.freight || 0) +
+          Number(booking.ins_vpp || 0)
+        ) * 0.18
+      );
+    };
+
+    const invoiceSubTotal =
+      invoiceBookings.reduce(
+        (sum, b) => sum + calculateSubTotal(b),
+        0
+      );
+
+    const invoiceTax =
+      invoiceBookings.reduce(
+        (sum, b) => sum + calculateTax(b),
+        0
+      );
+
+    const invoiceGrandTotal =
+      Math.round(
+        invoiceBookings.reduce(
+          (sum, b) =>
+            sum + calculateInvoiceTotal(b),
+          0
+        )
+      );
+
     await Invoice.create({
 
       invoiceNumber: invoiceNo,
@@ -1686,34 +1869,26 @@ export const generateInvoiceByCustomer = async (req, res) => {
         ),
 
       invoiceType,
+      generatedBilties: invoiceBookings.flatMap(b =>
+        b.items
+          .filter(
+            i =>
+              String(i.toPay).toLowerCase().trim() ===
+              String(invoiceType).toLowerCase().trim()
+          )
+          .map(i => ({
+            receiptNo: i.receiptNo,
+            invoiceType
+          }))
+      ),
 
       totals: {
 
-        subtotal:
-          invoiceBookings.reduce(
-            (s, b) =>
-              s + (b.billTotal || 0),
-            0
-          ),
+        subtotal: invoiceSubTotal,
 
-        tax:
-          invoiceBookings.reduce(
-            (s, b) =>
-              s +
-              (
-                (b.cgst || 0) +
-                (b.sgst || 0) +
-                (b.igst || 0)
-              ),
-            0
-          ),
+        tax: invoiceTax,
 
-        grandTotal:
-          invoiceBookings.reduce(
-            (s, b) =>
-              s + (b.grandTotal || 0),
-            0
-          )
+        grandTotal: invoiceGrandTotal
       },
 
       createdByUser:
@@ -2454,44 +2629,62 @@ export const generateCAReport = async (req, res) => {
       invoices.map((inv, index) => {
 
         // ✅ SAME AS INVOICE
+        let totalAmount = 0;
+        let gstAmount = 0;
+        let biltyAmount = 0;
 
-        const totalAmount =
-          inv.bookingIds.reduce(
-            (sum, b) =>
-              sum + (b.billTotal || 0),
-            0
-          );
+        inv.bookingIds.forEach((b) => {
 
-        // ✅ FIXED BILTY
+          const invoiceItem =
+            b.items?.find(
+              item =>
+                String(item.toPay).toLowerCase().trim() ===
+                String(inv.invoiceType).toLowerCase().trim()
+            );
 
-        const biltyAmount = 20;
+          if (!invoiceItem) return;
 
-        // ✅ SAME GST AS INVOICE
+          const isPaidInsurance =
+            String(invoiceItem.toPay).toLowerCase() === "paid" &&
+            Number(invoiceItem.insuranceAmount || 0) > 0;
 
-        const gstAmount =
-          inv.bookingIds.reduce(
-            (sum, b) => {
+          if (isPaidInsurance) {
 
-              return (
-                sum +
-                (
-                  (b.grandTotal || 0)
-                  -
-                  (b.billTotal || 0)
-                )
-              );
+            totalAmount +=
+              Number(invoiceItem.insuranceAmount || 0);
 
-            },
-            0
-          );
+            gstAmount +=
+              Number(invoiceItem.insuranceTotalWithGST || 0)
+              -
+              Number(invoiceItem.insuranceAmount || 0);
 
-        // ✅ SAME GRAND TOTAL AS INVOICE
+          } else {
+
+            const freight =
+              Number(b.freight || 0);
+
+            const insVpp =
+              Number(b.ins_vpp || 0);
+
+            totalAmount +=
+              freight + insVpp;
+
+            gstAmount +=
+              (freight + insVpp) * 0.18;
+
+            biltyAmount += 20;
+          }
+        });
+
+        gstAmount = Math.round(gstAmount);
 
         const grandTotal =
-          inv.bookingIds.reduce(
-            (sum, b) =>
-              sum + (b.grandTotal || 0),
-            0
+          Number(
+            (
+              totalAmount +
+              gstAmount +
+              biltyAmount
+            ).toFixed(2)
           );
 
         return {
@@ -2528,7 +2721,7 @@ export const generateCAReport = async (req, res) => {
 
           biltyAmount,
 
-          gstAmount,
+          gstAmount: Math.round(gstAmount),
 
           grandTotal,
 
@@ -2545,6 +2738,312 @@ export const generateCAReport = async (req, res) => {
     // SAVE HISTORY
     // =========================
 
+    const counterDoc =
+      await CAReportCounter.findOneAndUpdate(
+
+        {
+          userId: req.user._id
+        },
+
+        {
+          $inc: {
+            counter: 1
+          }
+        },
+
+        {
+          new: true,
+          upsert: true
+        }
+      );
+
+    const randomNumber =
+      Math.floor(
+        100 + Math.random() * 9000
+      );
+
+    const reportNumber =
+      `BPS-${req.user.stationCode}-CA-${randomNumber}`;
+
+    const months = [];
+
+    const current =
+      new Date(from);
+
+    current.setDate(1);
+
+    while (current <= to) {
+
+      months.push(
+        current.toLocaleString(
+          "en-IN",
+          {
+            month: "long"
+          }
+        )
+      );
+
+      current.setMonth(
+        current.getMonth() + 1
+      );
+    }
+
+    const monthText =
+      [...new Set(months)]
+        .join(", ");
+
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+
+    doc.setFillColor(25, 95, 170);
+
+    doc.rect(
+      0,
+      0,
+      210,
+      35,
+      "F"
+    );
+
+    doc.setTextColor(255, 255, 255);
+
+    doc.setFontSize(22);
+
+    doc.text(
+      "Bharat Parcel Services Pvt. Ltd.",
+      105,
+      12,
+      { align: "center" }
+    );
+
+    doc.setFontSize(14);
+
+    doc.text(
+      "CA REPORT",
+      105,
+      24,
+      { align: "center" }
+    );
+
+    doc.setTextColor(0, 0, 0);
+
+    doc.setFontSize(11);
+
+    doc.text(
+      `Period : ${moment(fromDate).format("DD-MM-YYYY")} To ${moment(toDate).format("DD-MM-YYYY")}`,
+      105,
+      48,
+      { align: "center" }
+    );
+
+    doc.text(
+      `Months : ${monthText}`,
+      105,
+      56,
+      { align: "center" }
+    );
+
+    autoTable(doc, {
+      startY: 65,
+
+      head: [[
+        "S.No",
+        "Invoice No",
+        "Bill Name",
+        "GST No",
+        "Amount",
+        "Bilty",
+        "GST",
+        "Grand Total"
+      ]],
+
+      body: reportData.map(row => [
+        row.sNo,
+        row.invoiceNumber,
+        row.billName,
+        row.gstNo,
+        row.totalAmount,
+        row.biltyAmount,
+        row.gstAmount,
+        row.grandTotal
+      ])
+    });
+
+    const totalAmountSum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.totalAmount || 0),
+        0
+      );
+
+    const totalGSTSum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.gstAmount || 0),
+        0
+      );
+
+    const totalBiltySum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.biltyAmount || 0),
+        0
+      );
+
+    const grandTotalSum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.grandTotal || 0),
+        0
+      );
+
+    let finalY =
+      doc.lastAutoTable.finalY + 15;
+
+    if (finalY > 220) {
+      doc.addPage();
+      finalY = 20;
+    }
+    doc.setFillColor(40, 120, 220);
+
+    doc.roundedRect(
+      110,
+      finalY,
+      85,
+      14,
+      4,
+      4,
+      "F"
+    );
+
+    doc.setTextColor(255, 255, 255);
+
+    doc.setFontSize(14);
+
+    doc.text(
+      "REPORT SUMMARY",
+      152,
+      finalY + 9,
+      { align: "center" }
+    );
+
+    doc.setTextColor(0, 0, 0);
+
+    doc.setFontSize(12);
+
+    doc.text(
+      "Invoices",
+      118,
+      finalY + 25
+    );
+
+    doc.text(
+      String(reportData.length),
+      185,
+      finalY + 25,
+      { align: "right" }
+    );
+
+    doc.text(
+      "Amount",
+      118,
+      finalY + 40
+    );
+
+    doc.text(
+      `Rs. ${Math.round(totalAmountSum).toLocaleString("en-IN")}`,
+      185,
+      finalY + 40,
+      { align: "right" }
+    );
+
+    doc.text(
+      "GST",
+      118,
+      finalY + 55
+    );
+
+    doc.text(
+      `Rs. ${Math.round(totalGSTSum).toLocaleString("en-IN")}`,
+      185,
+      finalY + 55,
+      { align: "right" }
+    );
+
+    doc.text(
+      "Bilty",
+      118,
+      finalY + 70
+    );
+
+    doc.text(
+      `Rs. ${Math.round(totalBiltySum).toLocaleString("en-IN")}`,
+      185,
+      finalY + 70,
+      { align: "right" }
+    );
+
+    doc.setDrawColor(180);
+
+    doc.line(
+      118,
+      finalY + 78,
+      185,
+      finalY + 78
+    );
+
+    doc.setTextColor(0, 128, 0);
+
+    doc.setFontSize(13);
+
+    doc.text(
+      "Grand Total",
+      118,
+      finalY + 90
+    );
+
+    doc.text(
+      `Rs. ${Math.round(grandTotalSum).toLocaleString("en-IN")}`,
+      185,
+      finalY + 90,
+      { align: "right" }
+    );
+
+    const pdfDir = path.join(
+      process.cwd(),
+      "public",
+      "ca-reports"
+    );
+
+    if (!fs.existsSync(pdfDir)) {
+      fs.mkdirSync(pdfDir, {
+        recursive: true
+      });
+    }
+
+    const pdfFileName =
+      `${reportNumber}.pdf`;
+
+    const pdfFullPath =
+      path.join(
+        pdfDir,
+        pdfFileName
+      );
+
+    const pdfBuffer =
+      Buffer.from(
+        doc.output("arraybuffer")
+      );
+
+    fs.writeFileSync(
+      pdfFullPath,
+      pdfBuffer
+    );
+
+    const pdfPath =
+      `/ca-reports/${pdfFileName}`;
+
     await CAReportHistory.create({
 
       fromDate,
@@ -2557,8 +3056,13 @@ export const generateCAReport = async (req, res) => {
       totalRecords:
         reportData.length,
 
-      fileName:
-        `CA_Report_${Date.now()}`
+      reportNumber,
+
+      months:
+        monthText,
+
+      fileName: pdfFileName,
+      pdfPath: pdfPath
     });
 
     // =========================
@@ -2566,14 +3070,12 @@ export const generateCAReport = async (req, res) => {
     // =========================
 
     res.status(200).json({
-
       success: true,
-
-      count:
-        reportData.length,
-
-      data:
-        reportData
+      reportNumber,
+      months: monthText,
+      pdfPath,
+      count: reportData.length,
+      data: reportData
     });
 
   } catch (err) {
@@ -2586,27 +3088,47 @@ export const generateCAReport = async (req, res) => {
   }
 };
 
-export const getCAReportHistory = async (req, res) => {
+export const getCAReportHistory =
+  async (req, res) => {
 
-  try {
+    try {
 
-    const history =
-      await CAReportHistory.find()
-        .populate(
-          "downloadedBy",
-          "firstName lastName"
+      let filter = {};
+
+      if (
+        req.user.role === "supervisor"
+      ) {
+
+        filter.downloadedBy =
+          req.user._id;
+      }
+
+      const history =
+        await CAReportHistory.find(
+          filter
         )
-        .sort({ createdAt: -1 });
+          .populate(
+            "downloadedBy",
+            "firstName lastName startStation role"
+          )
+          .sort({
+            createdAt: -1
+          });
 
-    res.status(200).json({
-      success: true,
-      data: history
-    });
+      return res.status(200).json({
 
-  } catch (err) {
+        success: true,
 
-    res.status(500).json({
-      message: err.message
-    });
-  }
-};
+        count: history.length,
+
+        data: history
+      });
+
+    } catch (err) {
+
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  };

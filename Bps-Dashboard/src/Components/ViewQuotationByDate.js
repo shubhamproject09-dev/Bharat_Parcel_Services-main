@@ -194,7 +194,71 @@ const ViewQuotationBtDate = () => {
             return;
         }
 
+        let totalPaid = 0;
+        let totalToPay = 0;
+
+        filteredBookings.forEach((booking) => {
+
+            const paidProducts =
+                booking.productDetails?.filter(
+                    p => p.topay?.toLowerCase() === "paid"
+                ) || [];
+
+            const topayProducts =
+                booking.productDetails?.filter(
+                    p => p.topay?.toLowerCase() === "topay"
+                ) || [];
+
+            // Mixed quotation
+            if (
+                paidProducts.length > 0 &&
+                topayProducts.length > 0
+            ) {
+
+                paidProducts.forEach(product => {
+
+                    totalPaid +=
+                        Number(product.price || 0) +
+                        Number(product.insurance || 0) +
+                        Number(product.vppAmount || 0);
+
+                });
+
+                topayProducts.forEach(product => {
+
+                    totalToPay +=
+                        Number(product.price || 0) +
+                        Number(product.insurance || 0) +
+                        Number(product.vppAmount || 0);
+
+                });
+
+            }
+
+            // Fully Paid
+            else if (
+                booking.productDetails?.every(
+                    p => p.topay?.toLowerCase() === "paid"
+                )
+            ) {
+
+                totalPaid +=
+                    Number(booking.grandTotal || 0);
+
+            }
+
+            // Fully ToPay
+            else {
+
+                totalToPay +=
+                    Number(booking.grandTotal || 0);
+
+            }
+
+        });
+
         const newSummary = {
+
             totalBookings: filteredBookings.length,
 
             totalItems: filteredBookings.reduce(
@@ -203,37 +267,17 @@ const ViewQuotationBtDate = () => {
             ),
 
             totalInsVpp: filteredBookings.reduce(
-                (acc, b) => acc + Number(b.insVppAmount || 0),
-                0
-            ),
-
-            totalPaid: filteredBookings.reduce((acc, b) => {
-                const product = b.productDetails?.[0];
-
-                return product?.topay === "paid"
-                    ? acc +
-                    Number(b.grandTotal || 0) +
-                    Number(b.insVppAmount || 0)
-                    : acc;
-            }, 0),
-
-            totalToPay: filteredBookings.reduce((acc, b) => {
-                const product = b.productDetails?.[0];
-
-                return product?.topay === "toPay"
-                    ? acc +
-                    Number(b.grandTotal || 0) +
-                    Number(b.insVppAmount || 0)
-                    : acc;
-            }, 0),
-
-            totalValue: filteredBookings.reduce(
                 (acc, b) =>
-                    acc +
-                    Number(b.grandTotal || 0) +
-                    Number(b.insVppAmount || 0),
+                    acc + Number(b.insVppAmount || 0),
                 0
             ),
+
+            totalPaid,
+
+            totalToPay,
+
+            totalValue:
+                totalPaid + totalToPay,
 
             balanceDue: filteredBookings.reduce(
                 (acc, b) =>
@@ -244,25 +288,38 @@ const ViewQuotationBtDate = () => {
             ),
 
             paymentBreakdown: {
+
                 fullyPaid: filteredBookings.filter(
-                    b => b.productDetails?.[0]?.topay === "paid"
+                    b =>
+                        b.productDetails?.every(
+                            p =>
+                                p.topay?.toLowerCase() === "paid"
+                        )
                 ).length,
 
                 unpaid: filteredBookings.filter(
-                    b => b.productDetails?.[0]?.topay === "toPay"
+                    b =>
+                        b.productDetails?.every(
+                            p =>
+                                p.topay?.toLowerCase() === "topay"
+                        )
                 ).length,
 
                 partiallyPaid: filteredBookings.reduce(
-                    (acc, b) => acc +
+                    (acc, b) =>
+                        acc +
                         (
                             b.topayHistory?.reduce(
-                                (s, x) => s + Number(x.amount || 0),
+                                (s, x) =>
+                                    s + Number(x.amount || 0),
                                 0
                             ) || 0
                         ),
                     0
                 )
+
             }
+
         };
 
         setSummary(newSummary);

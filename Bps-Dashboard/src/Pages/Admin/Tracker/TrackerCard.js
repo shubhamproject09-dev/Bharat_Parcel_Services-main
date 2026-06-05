@@ -31,6 +31,8 @@ import {
     Person as PersonIcon,
     DateRange as DateRangeIcon
 } from "@mui/icons-material";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import {
     Dialog,
@@ -73,6 +75,29 @@ const TrackerCard = () => {
         const month = String(d.getMonth() + 1).padStart(2, "0");
         const day = String(d.getDate()).padStart(2, "0");
         return `${year}-${month}-${day}`;
+    };
+
+    const getMonthsBetween = (fromDate, toDate) => {
+
+        const months = [];
+        const current = new Date(fromDate);
+
+        current.setDate(1);
+
+        while (current <= new Date(toDate)) {
+
+            months.push(
+                current.toLocaleString("en-IN", {
+                    month: "long"
+                })
+            );
+
+            current.setMonth(
+                current.getMonth() + 1
+            );
+        }
+
+        return [...new Set(months)].join(", ");
     };
 
     const handleGenerateInvoice = async () => {
@@ -182,102 +207,293 @@ const TrackerCard = () => {
 
             const rows = data.data || [];
 
-            let html = `
-        <html>
-        <head>
-        <title>CA Report</title>
+            const totalInvoices = rows.length;
 
-        <style>
-
-        body{
-            font-family: Arial;
-            padding:20px;
-        }
-
-        table{
-            width:100%;
-            border-collapse: collapse;
-        }
-
-        th,td{
-            border:1px solid #ccc;
-            padding:8px;
-            font-size:12px;
-        }
-
-        th{
-            background:#1976d2;
-            color:white;
-        }
-
-        </style>
-        </head>
-        <body>
-
-        <h2>CA REPORT</h2>
-
-        <table>
-
-        <tr>
-            <th>S No</th>
-            <th>Invoice No</th>
-            <th>Bill Name</th>
-            <th>GST No</th>
-           <th>Total Amount</th>
-<th>Bilty Amount</th>
-<th>GST Amount</th>
-<th>Grand Total</th>
-        </tr>
-        `;
-
-            rows.forEach((r) => {
-
-                html += `
-            <tr>
-                <td>${r.sNo}</td>
-                <td>${r.invoiceNumber}</td>
-                <td>${r.billName}</td>
-                <td>${r.gstNo}</td>
-               <td>${r.totalAmount}</td>
-
-<td>${r.biltyAmount}</td>
-
-<td>${r.gstAmount}</td>
-
-<td>${r.grandTotal}</td>
-            </tr>
-            `;
-            });
-
-            html += `
-        </table>
-        </body>
-        </html>
-        `;
-
-            const blob = new Blob(
-                [html],
-                { type: "text/html" }
+            const totalAmount = rows.reduce(
+                (sum, r) => sum + Number(r.totalAmount || 0),
+                0
             );
 
-            const url =
-                window.URL.createObjectURL(blob);
+            const totalGST = rows.reduce(
+                (sum, r) => sum + Number(r.gstAmount || 0),
+                0
+            );
 
-            const a =
-                document.createElement("a");
+            const totalBilty = rows.reduce(
+                (sum, r) => sum + Number(r.biltyAmount || 0),
+                0
+            );
 
-            a.href = url;
+            const totalGrand = rows.reduce(
+                (sum, r) => sum + Number(r.grandTotal || 0),
+                0
+            );
 
-            a.download =
-                `CA_Report_${Date.now()}.html`;
+            const monthText =
+                getMonthsBetween(
+                    caFromDate,
+                    caToDate
+                );
+            const formatDisplayDate = (date) => {
 
-            document.body.appendChild(a);
+                const d = new Date(date);
 
-            a.click();
+                const day =
+                    String(d.getDate())
+                        .padStart(2, "0");
 
-            a.remove();
+                const month =
+                    String(d.getMonth() + 1)
+                        .padStart(2, "0");
 
-            window.URL.revokeObjectURL(url);
+                const year =
+                    d.getFullYear();
+
+                return `${day}-${month}-${year}`;
+            };
+
+            const doc = new jsPDF("p", "mm", "a4");
+
+            // Header
+            doc.setFillColor(21, 101, 192);
+            doc.rect(0, 0, 210, 28, "F");
+
+            doc.setTextColor(255, 255, 255); // White Text
+
+            doc.setFont("helvetica", "bold");
+
+            doc.setFontSize(22);
+
+            doc.text(
+                "Bharat Parcel Services Pvt. Ltd.",
+                105,
+                11,
+                { align: "center" }
+            );
+
+            doc.setFontSize(12);
+
+            doc.text(
+                "CA REPORT",
+                105,
+                19,
+                { align: "center" }
+            );
+
+            doc.setTextColor(0, 0, 0);
+
+            doc.setFontSize(10);
+
+            doc.text(
+                `Period : ${formatDisplayDate(caFromDate)} To ${formatDisplayDate(caToDate)}`,
+                105,
+                35,
+                { align: "center" }
+            );
+
+            doc.text(
+                `Months : ${monthText}`,
+                105,
+                40,
+                { align: "center" }
+            );
+
+            // Table
+
+            autoTable(doc, {
+                startY: 46,
+
+                margin: {
+                    left: 8,
+                    right: 8
+                },
+
+                head: [[
+                    "S No",
+                    "Invoice No",
+                    "Bill Name",
+                    "GST No",
+                    "Amount",
+                    "GST",
+                    "Bilty",
+                    "Grand Total"
+                ]],
+
+                body: rows.map(r => [
+                    r.sNo,
+                    r.invoiceNumber,
+                    r.billName,
+                    r.gstNo,
+                    Math.round(r.totalAmount || 0),
+                    Math.round(r.gstAmount || 0),
+                    Math.round(r.biltyAmount || 0),
+                    Math.round(r.grandTotal || 0)
+                ]),
+
+                styles: {
+                    fontSize: 8
+                },
+
+                headStyles: {
+                    fillColor: [21, 101, 192]
+                },
+
+                alternateRowStyles: {
+                    fillColor: [245, 247, 250]
+                }
+            });
+
+            // Footer Summary
+            let finalY = doc.lastAutoTable.finalY + 8;
+
+            // Agar summary ke liye jagah nahi hai to naya page add karo
+            if (finalY + 80 > 280) {
+                doc.addPage();
+                finalY = 20;
+            }
+
+            // Shadow Effect
+            doc.setFillColor(220, 220, 220);
+            doc.roundedRect(
+                110,
+                finalY + 2,
+                90,
+                75,
+                4,
+                4,
+                "F"
+            );
+
+            // Main Card
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(
+                108,
+                finalY,
+                90,
+                75,
+                4,
+                4,
+                "F"
+            );
+
+            // Header
+            doc.setFillColor(25, 118, 210);
+            doc.roundedRect(
+                108,
+                finalY,
+                90,
+                12,
+                4,
+                4,
+                "F"
+            );
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+
+            doc.text(
+                "REPORT SUMMARY",
+                153,
+                finalY + 8,
+                { align: "center" }
+            );
+
+            doc.setTextColor(0, 0, 0);
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+
+            let sy = finalY + 18;
+
+            doc.text(
+                `Invoices`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `${totalInvoices}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 10;
+
+            doc.text(
+                `Amount`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalAmount)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 10;
+
+            doc.text(
+                `GST`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalGST)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 10;
+
+            doc.text(
+                `Bilty`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalBilty)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 8;
+
+            doc.setDrawColor(25, 118, 210);
+            doc.line(
+                114,
+                sy - 5,
+                192,
+                sy - 5
+            );
+
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(46, 125, 50);
+
+            doc.text(
+                `Grand Total`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalGrand)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            doc.save(
+                `CA_Report_${Date.now()}.pdf`
+            );
 
             setCaModalOpen(false);
 

@@ -71,6 +71,13 @@ app.use(
     )
 );
 
+app.use(
+    "/ca-reports",
+    express.static(
+        path.join(process.cwd(), "public", "ca-reports")
+    )
+);
+
 app.use(cookieParser());
 
 import manageStation from "./src/router/manageStation.router.js"

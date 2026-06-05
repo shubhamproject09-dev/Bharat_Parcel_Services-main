@@ -91,8 +91,13 @@ const ViewBookingByDate = () => {
                         },
                     }
                 );
+                setBookings(res.data.bookings || []);
+                setSummary(res.data.summary);
                 const bookingsData = res.data.bookings || [];
+
                 setBookings(bookingsData);
+
+                setSummary(res.data.summary);
 
             } catch (err) {
                 console.error('Error fetching bookings:', err);
@@ -130,88 +135,89 @@ const ViewBookingByDate = () => {
         });
     }, [bookings, searchText, fromCity, toCity]);
 
-    // ✅ FILTER KE ACCORDING SUMMARY
-    useEffect(() => {
-        if (!filteredBookings.length) {
-            setSummary({
-                totalBookings: 0,
-                grandTotal: 0,
-                totalPaid: 0,
-                totalToPay: 0,
-                totalInsVpp: 0,
-                paymentBreakdown: {
-                    fullyPaid: 0,
-                    unpaid: 0,
-                    partiallyPaid: 0
-                }
-            });
-            return;
-        }
+    const filteredSummary = useMemo(() => {
 
-        const newSummary = {
-            totalBookings: filteredBookings.length,
+        let totalPaid = 0;
+        let totalToPay = 0;
 
-            grandTotal: filteredBookings.reduce((sum, b) => {
-                return (
-                    sum +
-                    Number(b.grandTotal || 0) +
-                    Number(b.ins_vpp || 0)
-                );
-            }, 0),
+        filteredBookings.forEach((booking) => {
 
-            totalPaid: filteredBookings.reduce((sum, b) => {
-                const item = b.items?.[0];
+            const paidItems =
+                booking.items?.filter(
+                    i => i.toPay?.toLowerCase() === "paid"
+                ) || [];
 
-                return item?.toPay?.toLowerCase() === "paid"
-                    ? sum +
-                    Number(b.grandTotal || 0) +
-                    Number(b.ins_vpp || 0)
-                    : sum;
-            }, 0),
+            const topayItems =
+                booking.items?.filter(
+                    i => i.toPay?.toLowerCase() === "topay"
+                ) || [];
 
-            totalToPay: filteredBookings.reduce((sum, b) => {
-                const item = b.items?.[0];
+            // Mixed Booking
+            if (
+                paidItems.length > 0 &&
+                topayItems.length > 0
+            ) {
 
-                return item?.toPay?.toLowerCase() === "topay"
-                    ? sum +
-                    Number(b.deliveryPendingAmount || 0) +
-                    Number(b.ins_vpp || 0)
-                    : sum;
-            }, 0),
+                paidItems.forEach(item => {
 
-            paymentBreakdown: {
-                fullyPaid: filteredBookings.filter(
-                    b => b.items?.[0]?.toPay === "paid"
-                ).length,
+                    totalPaid +=
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0);
 
-                unpaid:
-                    filteredBookings.filter(
-                        b => Number(
-                            b.deliveryPendingAmount || 0
-                        ) > 0
-                    ).length,
+                });
 
-                partiallyPaid:
-                    filteredBookings.reduce(
-                        (acc, b) =>
-                            acc +
-                            (
-                                b.topayHistory?.reduce(
-                                    (s, x) => s + Number(x.amount || 0),
-                                    0
-                                ) || 0
-                            ),
-                        0
-                    )
+                topayItems.forEach(item => {
+
+                    totalToPay +=
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0);
+
+                });
+
             }
-        };
 
-        setSummary(newSummary);
+            // Fully Paid
+            else if (
+                booking.paymentStatus === "Paid"
+            ) {
+
+                totalPaid +=
+                    Number(booking.grandTotal || 0);
+
+            }
+
+            // Fully ToPay
+            else {
+
+                totalToPay +=
+                    Number(booking.grandTotal || 0);
+
+            }
+
+        });
+
+        return {
+
+            totalBookings:
+                filteredBookings.length,
+
+            totalPaid,
+
+            totalToPay,
+
+            grandTotal:
+                totalPaid + totalToPay
+
+        };
 
     }, [filteredBookings]);
 
+
     const getInsVppAmount = (booking) => {
-        return Number(booking.ins_vpp || 0);
+        return booking.items?.reduce(
+            (sum, item) => sum + Number(item.insuranceAmount || 0),
+            0
+        ) || 0;
     };
 
     const sortedBookings = useMemo(() => {
@@ -372,11 +378,63 @@ const ViewBookingByDate = () => {
         // ===== TABLE BODY =====
         const body = sortedBookings.map((b, index) => {
             const item = b.items?.[0] || {};
-            const payType = item.toPay;
-            const totalAmount = b.grandTotal || 0;
-            const paidAmount = payType === "paid" ? totalAmount : "";
-            const toPayAmount = payType === "toPay" ? totalAmount : "";
-            const insVpp = getInsVppAmount(b);
+
+            let paidAmount = 0;
+            let toPayAmount = 0;
+
+            const paidItems =
+                b.items?.filter(
+                    x => x.toPay?.toLowerCase() === "paid"
+                ) || [];
+
+            const topayItems =
+                b.items?.filter(
+                    x => x.toPay?.toLowerCase() === "topay"
+                ) || [];
+
+            // Mixed booking
+            if (
+                paidItems.length > 0 &&
+                topayItems.length > 0
+            ) {
+
+                paidAmount = paidItems.reduce(
+                    (sum, item) =>
+                        sum +
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0),
+                    0
+                );
+
+                toPayAmount = topayItems.reduce(
+                    (sum, item) =>
+                        sum +
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0),
+                    0
+                );
+
+            }
+            // Fully Paid
+            else if (b.paymentStatus === "Paid") {
+
+                paidAmount =
+                    Number(b.grandTotal || 0);
+
+            }
+            // Fully ToPay
+            else {
+
+                toPayAmount =
+                    Number(b.grandTotal || 0);
+
+            }
+
+            const insVpp =
+                Number(b.ins_vpp || 0);
+
+            const totalAmount =
+                Number(b.grandTotal || 0);
             const gst =
                 (b.cgst || 0) +
                 (b.sgst || 0) +
@@ -471,10 +529,10 @@ const ViewBookingByDate = () => {
         doc.setFont("helvetica", "normal");
 
         const summaryData = [
-            ["Total Bookings", summary.totalBookings],
-            ["Total Paid Amount", summary.totalPaid],
-            ["Total To Pay Amount", summary.totalToPay],
-            ["Grand Total", summary.grandTotal],
+            ["Total Bookings", filteredSummary.totalBookings],
+            ["Total Paid Amount", filteredSummary.totalPaid],
+            ["Total To Pay Amount", filteredSummary.totalToPay],
+            ["Grand Total", filteredSummary.grandTotal],
             ["Fully Paid Count", summary.paymentBreakdown.fullyPaid],
             ["ToPay Received", summary.paymentBreakdown.partiallyPaid],
             ["To Pay Count", summary.paymentBreakdown.unpaid],
@@ -518,11 +576,63 @@ const ViewBookingByDate = () => {
     const downloadBookingExcel = () => {
         const data = sortedBookings.map((b, index) => {
             const item = b.items?.[0] || {};
-            const payType = item.toPay;
-            const totalAmount = b.grandTotal || 0;
-            const paidAmount = payType === "paid" ? totalAmount : "";
-            const toPayAmount = payType === "toPay" ? totalAmount : "";
-            const insVpp = getInsVppAmount(b);
+
+            let paidAmount = 0;
+            let toPayAmount = 0;
+
+            const paidItems =
+                b.items?.filter(
+                    x => x.toPay?.toLowerCase() === "paid"
+                ) || [];
+
+            const topayItems =
+                b.items?.filter(
+                    x => x.toPay?.toLowerCase() === "topay"
+                ) || [];
+
+            // Mixed booking
+            if (
+                paidItems.length > 0 &&
+                topayItems.length > 0
+            ) {
+
+                paidAmount = paidItems.reduce(
+                    (sum, item) =>
+                        sum +
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0),
+                    0
+                );
+
+                toPayAmount = topayItems.reduce(
+                    (sum, item) =>
+                        sum +
+                        Number(item.amount || 0) +
+                        Number(item.insuranceTotalWithGST || 0),
+                    0
+                );
+
+            }
+            // Fully Paid
+            else if (b.paymentStatus === "Paid") {
+
+                paidAmount =
+                    Number(b.grandTotal || 0);
+
+            }
+            // Fully ToPay
+            else {
+
+                toPayAmount =
+                    Number(b.grandTotal || 0);
+
+            }
+
+            const insVpp =
+                Number(b.ins_vpp || 0);
+
+            const totalAmount =
+                Number(b.grandTotal || 0);
             const gst =
                 (b.cgst || 0) +
                 (b.sgst || 0) +
@@ -558,10 +668,10 @@ const ViewBookingByDate = () => {
         data.push({});
         data.push({ "Booking ID": "SUMMARY" });
 
-        data.push({ "Booking ID": "Total Bookings", "Total": summary.totalBookings });
-        data.push({ "Booking ID": "Total Paid Amount", "Total": Number(summary.totalPaid) });
-        data.push({ "Booking ID": "Total To Pay Amount", "Total": Number(summary.totalToPay) });
-        data.push({ "Booking ID": "Grand Total", "Total": Number(summary.grandTotal) });
+        data.push({ "Booking ID": "Total Bookings", "Total": filteredSummary.totalBookings });
+        data.push({ "Booking ID": "Total Paid Amount", "Total": Number(filteredSummary.totalPaid) });
+        data.push({ "Booking ID": "Total To Pay Amount", "Total": Number(filteredSummary.totalToPay) });
+        data.push({ "Booking ID": "Grand Total", "Total": Number(filteredSummary.grandTotal) });
         data.push({ "Booking ID": "Fully Paid Count", "Total": summary.paymentBreakdown.fullyPaid });
         data.push({
             "Booking ID": "ToPay Received",
@@ -625,7 +735,7 @@ const ViewBookingByDate = () => {
                                             Grand Total
                                         </Typography>
                                         <Typography variant="h4" fontWeight={700}>
-                                            ₹{summary.grandTotal.toLocaleString()}
+                                            ₹{filteredSummary.grandTotal.toLocaleString()}
                                         </Typography>
                                     </Box>
                                 </CardContent>
@@ -642,7 +752,7 @@ const ViewBookingByDate = () => {
                                             Amount Paid
                                         </Typography>
                                         <Typography variant="h4" fontWeight={700}>
-                                            ₹{summary.totalPaid.toLocaleString()}
+                                            ₹{filteredSummary.totalPaid.toLocaleString()}
                                         </Typography>
                                     </Box>
                                 </CardContent>
@@ -659,7 +769,7 @@ const ViewBookingByDate = () => {
                                             Balance Due
                                         </Typography>
                                         <Typography variant="h4" fontWeight={700}>
-                                            ₹{summary.totalToPay.toLocaleString()}
+                                            ₹{filteredSummary.totalToPay.toLocaleString()}
                                         </Typography>
                                     </Box>
                                 </CardContent>
@@ -831,14 +941,50 @@ const ViewBookingByDate = () => {
 
                                     <TableBody>
                                         {paginatedBookings.map((booking, index) => {
+
                                             const item = booking.items?.[0] || {};
-                                            const payType = (item.toPay || "").toLowerCase();
+
+                                            const paidItem = booking.items?.find(
+                                                x => x.toPay?.toLowerCase() === "paid"
+                                            );
+
+                                            const topayItem = booking.items?.find(
+                                                x => x.toPay?.toLowerCase() === "topay"
+                                            );
+
+                                            const payType = (topayItem?.toPay || "").toLowerCase();
+
                                             const grandTotal = booking.grandTotal || 0;
-                                            const paidValue = payType === "paid" ? grandTotal : "-";
-                                            const toPayValue = payType === "topay" ? grandTotal : "-";
-                                            const amount = item.amount || 0;
-                                            const insVpp = getInsVppAmount(booking);
+
+                                            const paidValue =
+                                                paidItem
+                                                    ? (
+                                                        Number(paidItem.amount || 0) +
+                                                        Number(paidItem.insuranceTotalWithGST || 0)
+                                                    )
+                                                    : (
+                                                        booking.paymentStatus === "Paid"
+                                                            ? Number(booking.paidAmount || booking.pickupCollectedAmount || 0)
+                                                            : 0
+                                                    );
+
+                                            const toPayValue =
+                                                Number(topayItem?.amount || 0);
+
+                                            const amount =
+                                                Number(topayItem?.amount) ||
+                                                Number(paidItem?.amount) ||
+                                                Number(booking.freight) ||
+                                                0;
+
+                                            const insVpp =
+                                                Number(paidItem?.insuranceAmount) ||
+                                                Number(topayItem?.insuranceAmount) ||
+                                                Number(booking.ins_vpp) ||
+                                                0;
+
                                             const bilty = 20;
+
                                             const gst =
                                                 (booking.cgst || 0) +
                                                 (booking.sgst || 0) +
@@ -939,13 +1085,12 @@ const ViewBookingByDate = () => {
                                                     </TableCell>
 
                                                     <TableCell sx={oneLineCell}>
-                                                        {paidValue === "-" ? "-" : `₹${paidValue}`}
+                                                        {paidValue > 0 ? `₹${paidValue}` : "-"}
                                                     </TableCell>
 
                                                     <TableCell sx={oneLineCell}>
-                                                        {toPayValue === "-" ? "-" : `₹${toPayValue}`}
+                                                        {toPayValue > 0 ? `₹${toPayValue}` : "-"}
                                                     </TableCell>
-
                                                     <TableCell>
 
                                                         {payType === "topay" ? (
@@ -1022,19 +1167,19 @@ const ViewBookingByDate = () => {
                                     <TableBody>
                                         <TableRow>
                                             <TableCell><strong>Total Bookings</strong></TableCell>
-                                            <TableCell align="right">{summary.totalBookings}</TableCell>
+                                            <TableCell align="right">{filteredSummary.totalBookings}</TableCell>
                                         </TableRow>
                                         <TableRow>
                                             <TableCell><strong>Paid Amount</strong></TableCell>
-                                            <TableCell align="right">₹{summary.totalPaid.toLocaleString()}</TableCell>
+                                            <TableCell align="right">₹{filteredSummary.totalPaid.toLocaleString()}</TableCell>
                                         </TableRow>
                                         <TableRow>
                                             <TableCell><strong>ToPay Amount</strong></TableCell>
-                                            <TableCell align="right">₹{summary.totalToPay.toLocaleString()}</TableCell>
+                                            <TableCell align="right">₹{filteredSummary.totalToPay.toLocaleString()}</TableCell>
                                         </TableRow>
                                         <TableRow>
                                             <TableCell><strong>Grand Total</strong></TableCell>
-                                            <TableCell align="right">₹{summary.grandTotal.toLocaleString()}</TableCell>
+                                            <TableCell align="right">₹{filteredSummary.grandTotal.toLocaleString()}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>

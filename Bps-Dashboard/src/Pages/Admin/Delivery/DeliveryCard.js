@@ -40,6 +40,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchBookingsByType } from '../../../features/booking/bookingSlice';
 import { fetchBookingRequest as fetchQuotationRequest } from '../../../features/quotation/quotationSlice';
 import { assignDeliveries, finalDeliveryList, finalDeliveryWhatsApp, finalDeliveryMail, VehicleAvailabile, driverAvailabile } from '../../../features/delivery/deliverySlice';
+import ReceiptIcon from "@mui/icons-material/Receipt";
+import SlipModal from "../../../Components/SlipModal";
+import {
+    viewBookingById,
+    clearViewedBooking
+} from "../../../features/booking/bookingSlice";
 
 const normalizeText = (text = '') =>
     text.toString().toLowerCase().replace(/\s+/g, ' ').trim();
@@ -65,6 +71,13 @@ const DeliveryCard = () => {
     } = useSelector((state) => state.quotations);
     const quotationList = Array.isArray(rawQuotationList) ? rawQuotationList : [];
     const { list: finalList } = useSelector((state) => state.deliveries);
+    const openSlip = useSelector(
+        (state) => state.bookings.viewedBooking !== null
+    );
+
+    const booking = useSelector(
+        (state) => state.bookings.viewedBooking
+    );
 
     const [selectedCard, setSelectedCard] = useState('booking');
     const [selectedItems, setSelectedItems] = useState({ booking: [], quotation: [], final: [] });
@@ -118,6 +131,18 @@ const DeliveryCard = () => {
     const handlePreview = (pdfUrl) => {
         if (!pdfUrl) return;
         window.open(pdfUrl, "_blank");
+    };
+
+    const handleSlipClick = (bookingId) => {
+        dispatch(viewBookingById(bookingId));
+    };
+
+    useEffect(() => {
+        console.log("VIEWED BOOKING", booking);
+    }, [booking]);
+
+    const handleCloseSlip = () => {
+        dispatch(clearViewedBooking());
     };
 
     const handleCheckboxChange = (id) => {
@@ -816,7 +841,7 @@ const DeliveryCard = () => {
                                                     {/* Order ID */}
                                                     <TableCell>
                                                         <Typography variant="body2" fontWeight={600}>
-                                                            {item.orderId || 'N/A'}
+                                                            {item.bookingDate || 'N/A'}
                                                         </Typography>
                                                     </TableCell>
 
@@ -862,6 +887,17 @@ const DeliveryCard = () => {
                                                                 sx={{ ml: 1 }}
                                                             >
                                                                 <SendIcon />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="View Bilty">
+                                                            <IconButton
+                                                                color="secondary"
+                                                                onClick={() => {
+                                                                    console.log("bookingRef", item.bookingRef);
+                                                                    handleSlipClick(item.bookingRef);
+                                                                }}
+                                                            >
+                                                                <ReceiptIcon />
                                                             </IconButton>
                                                         </Tooltip>
                                                     </TableCell>
@@ -917,6 +953,11 @@ const DeliveryCard = () => {
                     </Button>
                 </Box>
             )}
+            <SlipModal
+                open={openSlip}
+                handleClose={handleCloseSlip}
+                bookingData={booking}
+            />
         </Box>
     );
 };

@@ -31,13 +31,36 @@ export const regenerateInvoicePdf = async (req, res) => {
             });
         }
 
-        // GENERATE PDF BUFFER
+        // 🔥 ADD THIS BLOCK
+        const invoiceBookings = bookings.map(b => {
+
+            if (
+                String(invoice.invoiceType).toLowerCase() === "topay"
+            ) {
+                return {
+                    ...b.toObject(),
+                    billToName: b.receiverName,
+                    billToAddress: b.receiverLocality,
+                    billToGst: b.receiverGgt,
+                };
+            }
+
+            return {
+                ...b.toObject(),
+                billToName: b.senderName,
+                billToAddress: b.senderLocality,
+                billToGst: b.senderGgt,
+            };
+
+        });
+
         const pdfBuffer = await generateInvoicePDF({
-            bookings,
+            bookings: invoiceBookings,
             invoiceNo: invoice.invoiceNumber,
             billDate:
                 invoice.invoiceDate ||
                 invoice.createdAt,
+            invoiceType: invoice.invoiceType
         });
 
         // FILE PATH

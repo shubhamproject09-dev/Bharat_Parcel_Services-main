@@ -96,7 +96,7 @@ const calculateRowHeight = (doc, row, widths) => {
 // 🧾 Generate Invoice PDF (Clean Black & White Design)
 // =========================
 export const generateInvoicePDF = async (data) => {
-    const { bookings = [], invoiceNo, billDate } = data;
+    const { bookings = [], invoiceNo, billDate, invoiceType } = data;
 
     // ✅ Filter only paid bookings
     // ✅ Allow both PAID & TOPAY
@@ -168,8 +168,14 @@ export const generateInvoicePDF = async (data) => {
 
         // 🔥 Decide billing party based on toPay
         // 🔥 BILL TO LOGIC
+        const invoiceItem = booking.items?.find(
+            item =>
+                String(item.toPay).toLowerCase().trim() ===
+                String(invoiceType).toLowerCase().trim()
+        );
+
         const payType = String(
-            booking.items?.[0]?.toPay || ""
+            invoiceItem?.toPay || ""
         ).toLowerCase().trim();
 
         // ✅ paid => sender
@@ -300,35 +306,75 @@ export const generateInvoicePDF = async (data) => {
         let totalAmount = 0, totalIgst = 0;
 
         bookings.forEach((b, i) => {
-            const item = b.items?.[0] || {};
+
+            const item =
+                b.items?.find(
+                    x =>
+                        String(x.toPay).toLowerCase().trim() ===
+                        String(invoiceType).toLowerCase().trim()
+                ) || {};
+
 
             const qty = Number(item.quantity || 0);
             const wt = Number(item.weight || 0);
-            const insVpp = Number(b.ins_vpp || 0);
 
-            const freight = Number(b.freight || 0);
-            const biltyCharge = 20;
+            let insVpp = 0;
+            let freight = 0;
+            let gstAmount = 0;
+            let biltyCharge = 20;
+            let total = 0;
 
-            // GST Base = Amount + INS/VPP
-            const taxableAmount = freight + insVpp;
+            const isPaidInsurance =
+                String(item.toPay).toLowerCase().trim() === "paid" &&
+                Number(item.insuranceAmount || 0) > 0;
 
-            // GST 18%
-            const gstAmount = taxableAmount * 0.18;
+            if (isPaidInsurance) {
 
-            // Row Total
-            const total =
-                freight +
-                insVpp +
-                gstAmount +
-                biltyCharge;
+                insVpp = Number(item.insuranceAmount || 0);
+
+                gstAmount =
+                    Number(item.insuranceCgst || 0) +
+                    Number(item.insuranceSgst || 0);
+
+                freight = 0;
+
+                biltyCharge = 0;
+
+                total =
+                    Number(item.insuranceTotalWithGST || 0);
+
+            } else {
+
+                insVpp = Number(b.ins_vpp || 0);
+
+                freight = Number(b.freight || 0);
+
+                const taxableAmount = freight + insVpp;
+
+                gstAmount = taxableAmount * 0.18;
+
+                total =
+                    freight +
+                    insVpp +
+                    gstAmount +
+                    biltyCharge;
+            }
 
             // label
             const payType = item.toPay;
             let gstLabel = "";
 
-            if (payType === "toPay") {
+            if (isPaidInsurance) {
+
+                gstLabel =
+                    `CGST ${item.insuranceCgst || 0} + SGST ${item.insuranceSgst || 0}`;
+
+            } else if (payType === "toPay") {
+
                 gstLabel = `IGST 18%: ${gstAmount.toFixed(2)}`;
+
             } else {
+
                 gstLabel = `CGST 9% + SGST 9%: ${gstAmount.toFixed(2)}`;
             }
 
@@ -417,14 +463,43 @@ export const generateInvoicePDF = async (data) => {
                 xx += widths[j];
             });
 
-            totalAmount += (freight + insVpp);
-            totalIgst += gstAmount;
+            if (isPaidInsurance) {
+
+                totalAmount += Number(item.insuranceAmount || 0);
+
+                totalIgst +=
+                    Number(item.insuranceTotalWithGST || 0)
+                    -
+                    Number(item.insuranceAmount || 0);
+
+            } else {
+
+                totalAmount += (freight + insVpp);
+
+                totalIgst += gstAmount;
+            }
             y += hgt;
         });
 
         // ================= ROUND OFF CALCULATION =================
         // ✅ TOTAL BILTY CHARGE
-        const totalBiltyCharge = bookings.length * 20;
+        const totalBiltyCharge =
+            bookings.reduce((sum, b) => {
+
+                const item =
+                    b.items?.find(
+                        x =>
+                            String(x.toPay).toLowerCase().trim() ===
+                            String(invoiceType).toLowerCase().trim()
+                    ) || {};
+
+                const isPaidInsurance =
+                    String(item.toPay).toLowerCase().trim() === "paid" &&
+                    Number(item.insuranceAmount || 0) > 0;
+
+                return sum + (isPaidInsurance ? 0 : 20);
+
+            }, 0);
         const gross =
             totalAmount +
             totalIgst +
@@ -434,8 +509,15 @@ export const generateInvoicePDF = async (data) => {
 
         // ================= TOTAL SECTION =================
 
+        const firstItem =
+            bookings?.[0]?.items?.find(
+                x =>
+                    String(x.toPay).toLowerCase().trim() ===
+                    String(invoiceType).toLowerCase().trim()
+            );
+
         const firstPayType = String(
-            bookings?.[0]?.items?.[0]?.toPay || ""
+            firstItem?.toPay || ""
         ).toLowerCase().trim();
 
         const isIGST = firstPayType === "topay";

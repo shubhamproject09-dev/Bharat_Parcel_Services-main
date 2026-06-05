@@ -307,12 +307,73 @@ export const getBookingSummaryByDate = async (req, res) => {
     // ❌ lean() hata diya
     const bookings = await Quotation.find(query)
       .sort({ quotationDate: -1 });
+    let totalPaid = 0;
+    let totalToPay = 0;
 
+    bookings.forEach((booking) => {
+
+      const paidProducts =
+        booking.productDetails?.filter(
+          p => p.topay?.toLowerCase() === "paid"
+        ) || [];
+
+      const topayProducts =
+        booking.productDetails?.filter(
+          p => p.topay?.toLowerCase() === "topay"
+        ) || [];
+
+      if (
+        paidProducts.length > 0 &&
+        topayProducts.length > 0
+      ) {
+
+        paidProducts.forEach(product => {
+
+          totalPaid +=
+            Number(product.price || 0) +
+            Number(product.insurance || 0) +
+            Number(product.vppAmount || 0);
+
+        });
+
+        topayProducts.forEach(product => {
+
+          totalToPay +=
+            Number(product.price || 0) +
+            Number(product.insurance || 0) +
+            Number(product.vppAmount || 0);
+
+        });
+
+      }
+
+      else if (
+        booking.productDetails?.every(
+          p => p.topay?.toLowerCase() === "paid"
+        )
+      ) {
+
+        totalPaid += Number(
+          booking.grandTotal || 0
+        );
+
+      }
+
+      else {
+
+        totalToPay += Number(
+          booking.grandTotal || 0
+        );
+
+      }
+
+    });
     const bookingSummaries = bookings.map((booking) => {
 
       const topayReceived =
         booking.topayHistory?.reduce(
-          (sum, item) => sum + Number(item.amount || 0),
+          (sum, item) =>
+            sum + Number(item.amount || 0),
           0
         ) || 0;
 
@@ -324,20 +385,30 @@ export const getBookingSummaryByDate = async (req, res) => {
 
         toPayReceived: topayReceived,
 
-        dueBalance: booking.deliveryPendingAmount || 0,
+        dueBalance:
+          booking.deliveryPendingAmount || 0,
 
-        paymentStatus: booking.paymentStatus,
+        paymentStatus:
+          booking.paymentStatus,
 
-        itemsCount: booking.productDetails?.length || 0
+        itemsCount:
+          booking.productDetails?.length || 0
 
       };
 
     });
+    const summary = {
+      totalPaid,
+      totalToPay,
+      grandTotal: totalPaid + totalToPay,
+      totalBookings: bookingSummaries.length
+    };
 
     res.status(200).json({
       message: `Bookings from ${fromDate} to ${toDate}`,
       total: bookingSummaries.length,
       bookings: bookingSummaries,
+      summary
     });
 
   } catch (error) {

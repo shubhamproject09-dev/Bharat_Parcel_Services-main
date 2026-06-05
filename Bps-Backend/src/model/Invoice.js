@@ -23,6 +23,12 @@ const InvoiceSchema = new mongoose.Schema(
             enum: ["paid", "toPay"],
             required: true
         },
+        generatedBilties: [
+            {
+                receiptNo: String,
+                invoiceType: String
+            }
+        ],
 
         invoiceStatus: {
             type: String,

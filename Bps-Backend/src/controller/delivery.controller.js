@@ -13,11 +13,21 @@ import { Driver } from "../model/driver.model.js";
 import nodemailer from 'nodemailer';
 
 
-const generateOrderId = () => {
-  const prefix = "BHA";
-  const randomNumber = Math.floor(1000 + Math.random() * 9000);
-  const suffix = "DELIVERY";
-  return `${prefix}${randomNumber}${suffix}`;
+const generateOrderId = (
+  stationCode,
+  type = "Booking"
+) => {
+
+  const randomNumber =
+    Math.floor(
+      10000 + Math.random() * 90000
+    );
+
+  if (type === "Quotation") {
+    return `Q${stationCode}BPS${randomNumber}DELIVERY`;
+  }
+
+  return `${stationCode}BPS${randomNumber}DELIVERY`;
 };
 const formatVehicleDetails = (vehicles) => {
   return vehicles.map((vehicle, index) => ({
@@ -118,6 +128,8 @@ export const getAvailableVehicles = asyncHandler(async (req, res) => {
 export const assignDelivery = asyncHandler(async (req, res) => {
   console.log("Req", req.body);
   const { bookingIds = [], quotationIds = [], driverId, vehicleModel } = req.body;
+  const stationCode =
+    req.user.stationCode;
 
   if ((!bookingIds.length && !quotationIds.length) || !driverId || !vehicleModel) {
     throw new ApiError(400, "Booking or Quotation IDs, Driver ID, and Vehicle Model are required.");
@@ -180,7 +192,10 @@ export const assignDelivery = asyncHandler(async (req, res) => {
     await Booking.updateOne({ bookingId }, { activeDelivery: true });
 
     const deliveryObj = {
-      orderId: generateOrderId(),
+      orderId: generateOrderId(
+        stationCode,
+        "Booking"
+      ),
       bookingId: booking._id,
       deliveryType: "Booking",
       driverId, // ✅ updated
@@ -193,10 +208,6 @@ export const assignDelivery = asyncHandler(async (req, res) => {
       contact: booking.mobile || 'N/A',
     };
 
-    await Booking.updateOne(
-      { bookingId },
-      { activeDelivery: true, orderId: deliveryObj.orderId }
-    );
     deliveries.push(deliveryObj);
 
     responseData.push({
@@ -216,7 +227,10 @@ export const assignDelivery = asyncHandler(async (req, res) => {
     if (alreadyAssigned) continue;
 
     const deliveryObj = {
-      orderId: generateOrderId(),
+      orderId: generateOrderId(
+        stationCode,
+        "Quotation"
+      ),
       quotationId: quotation._id,   // ✅ ObjectId
       deliveryType: "Quotation",
       driverId,
@@ -243,6 +257,18 @@ export const assignDelivery = asyncHandler(async (req, res) => {
   if (!deliveries.length) throw new ApiError(400, "No valid unassigned bookings or quotations found.");
 
   await Delivery.insertMany(deliveries);
+  for (const delivery of deliveries) {
+
+    await Booking.updateOne(
+      {
+        _id: delivery.bookingId
+      },
+      {
+        activeDelivery: true,
+        orderId: delivery.orderId
+      }
+    );
+  }
 
   res.status(201).json(
     new ApiResponse(201, responseData, "Deliveries assigned successfully with booking details.")
@@ -311,10 +337,59 @@ export const listQuotationDeliveries = asyncHandler(async (req, res) => {
 export const finalizeDelivery = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
 
-  const delivery = await Delivery.findOne({ orderId });
+  let delivery =
+    await Delivery.findOne({
+      orderId
+    });
 
   if (!delivery) {
-    throw new ApiError(404, "Delivery not found with this Order ID.");
+
+    const booking =
+      await Booking.findOne({
+        orderId
+      });
+
+    if (booking) {
+
+      delivery =
+        await Delivery.create({
+
+          orderId:
+            booking.orderId,
+
+          bookingId:
+            booking._id,
+
+          deliveryType:
+            "Booking",
+
+          status:
+            "Pending",
+
+          fromName:
+            booking.senderName,
+
+          toName:
+            booking.receiverName,
+
+          pickup:
+            booking.fromCity,
+
+          drop:
+            booking.toCity,
+
+          contact:
+            booking.receiverContact
+        });
+    }
+  }
+
+  if (!delivery) {
+
+    throw new ApiError(
+      404,
+      "Delivery not found with this Order ID."
+    );
   }
 
   if (delivery.status === "Final Delivery") {
@@ -516,8 +591,14 @@ export const listFinalDeliveries = asyncHandler(async (req, res) => {
   const deliveries = await Delivery.find(filter)
     .populate([
       { path: "vehicleModel", select: "vehicleModel" },
-      { path: "bookingId", select: "quotationPdf bookingId items" },
-      { path: "quotationId", select: "quotationPdf bookingId productDetails" },
+      {
+        path: "bookingId",
+        select: "quotationPdf bookingId items bookingDate"
+      },
+      {
+        path: "quotationId",
+        select: "quotationPdf bookingId productDetails"
+      },
     ])
     .lean();
 
@@ -543,16 +624,26 @@ export const listFinalDeliveries = asyncHandler(async (req, res) => {
       drop: delivery.drop || "N/A",
       contact: delivery.contact || "N/A",
       driverName: delivery.driverName || "N/A",
+
+      bookingDate:
+        delivery.bookingId?.bookingDate
+          ? moment(delivery.bookingId.bookingDate)
+            .tz("Asia/Kolkata")
+            .format("DD/MM/YYYY")
+          : null,
+
       vehicle: delivery.vehicleModel
         ? {
           _id: delivery.vehicleModel._id,
           vehicleModel: delivery.vehicleModel.vehicleModel,
         }
         : null,
+
       pdfUrl:
         delivery.deliveryType === "Booking"
           ? delivery.bookingId?.quotationPdf || null
           : delivery.quotationId?.quotationPdf || null,
+
       bookingRef: delivery.bookingId?.bookingId || null,
       quotationRef: delivery.quotationId?.bookingId || null,
     };

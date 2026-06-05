@@ -62,6 +62,8 @@ import ViewRate from "../Pages/Admin/RateList/Form/ViewRate";
 import EditRate from "../Pages/Admin/RateList/Form/EditRate";
 import InvoiceDownloadHistory from "../Pages/Admin/Tracker/InvoiceDownloadHistory"
 import PendingInvoiceList from '../Pages/Admin/Tracker/PendingInvoiceList';
+import CAReportHistory
+    from "../Components/CAReportHistory";
 
 const MainRoute = () => {
     const location = useLocation();
@@ -199,6 +201,11 @@ const MainRoute = () => {
                 <Route path="/rate-list/add" element={<AddRateList />} />
                 <Route path="/rate-list/view/:id" element={<ViewRate />} />
                 <Route path="/rate-list/edit/:id" element={<EditRate />} />
+
+                <Route
+                    path="/ca-report-history"
+                    element={<CAReportHistory />}
+                />
 
 
                 {/* Users (Admin Only) */}

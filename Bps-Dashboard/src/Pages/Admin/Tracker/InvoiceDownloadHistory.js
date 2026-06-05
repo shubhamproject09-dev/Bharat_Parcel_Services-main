@@ -26,6 +26,8 @@ import { BOOKINGS_API, FILES_BASE_URL }
     from "../../../utils/api";
 
 export default function InvoiceDownloadHistory() {
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
 
     const [type, setType] =
         useState("paid");
@@ -97,39 +99,40 @@ export default function InvoiceDownloadHistory() {
 
         };
 
-    const filteredData =
-        data.filter((row) => {
+    const filteredData = data.filter((row) => {
 
-            const customerName =
-                row.invoiceType === "toPay"
+        const customerName =
+            row.invoiceType === "toPay"
+                ? row.receiverName || ""
+                : [
+                    row.customerId?.firstName,
+                    row.customerId?.middleName,
+                    row.customerId?.lastName
+                ]
+                    .filter(Boolean)
+                    .join(" ");
 
-                    ? row.receiverName || ""
+        const matchesSearch =
+            row.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) ||
+            customerName?.toLowerCase().includes(search.toLowerCase());
 
-                    : [
-                        row.customerId?.firstName,
-                        row.customerId?.middleName,
-                        row.customerId?.lastName
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
+        let matchesDate = true;
 
-            return (
+        if (startDate && endDate) {
 
-                row.invoiceNumber
-                    ?.toLowerCase()
-                    .includes(
-                        search.toLowerCase()
-                    )
+            const filterStart = new Date(startDate);
+            const filterEnd = new Date(endDate);
 
-                ||
+            const rowStart = new Date(row.fromDate);
+            const rowEnd = new Date(row.toDate);
 
-                customerName
-                    ?.toLowerCase()
-                    .includes(
-                        search.toLowerCase()
-                    )
-            );
-        });
+            matchesDate =
+                rowStart <= filterEnd &&
+                rowEnd >= filterStart;
+        }
+
+        return matchesSearch && matchesDate;
+    });
 
     const fetchHistory =
         async (selectedType) => {
@@ -210,6 +213,25 @@ export default function InvoiceDownloadHistory() {
 
                     </Button>
 
+                </Stack>
+                <Stack direction="row" spacing={2} mb={2}>
+                    <TextField
+                        label="From Date"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                    />
+
+                    <TextField
+                        label="To Date"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{ shrink: true }}
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                    />
                 </Stack>
                 <TextField
 

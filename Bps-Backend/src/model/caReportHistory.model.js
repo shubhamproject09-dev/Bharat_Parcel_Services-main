@@ -12,7 +12,18 @@ const caReportHistorySchema = new mongoose.Schema(
 
         totalRecords: Number,
 
+        reportNumber: {
+            type: String,
+            unique: true
+        },
+
+        months: String,
+
         fileName: String,
+
+        pdfPath: {
+            type: String
+        },
 
         createdAt: {
             type: Date,

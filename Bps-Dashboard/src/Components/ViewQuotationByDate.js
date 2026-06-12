@@ -199,60 +199,18 @@ const ViewQuotationBtDate = () => {
 
         filteredBookings.forEach((booking) => {
 
-            const paidProducts =
-                booking.productDetails?.filter(
-                    p => p.topay?.toLowerCase() === "paid"
-                ) || [];
+            const revenue =
+                Number(booking.amount || 0) +
+                Number(booking.freight || 0) +
+                Number(booking.insVppAmount || 0);
 
-            const topayProducts =
-                booking.productDetails?.filter(
-                    p => p.topay?.toLowerCase() === "topay"
-                ) || [];
+            const status =
+                booking.productDetails?.[0]?.topay?.toLowerCase();
 
-            // Mixed quotation
-            if (
-                paidProducts.length > 0 &&
-                topayProducts.length > 0
-            ) {
-
-                paidProducts.forEach(product => {
-
-                    totalPaid +=
-                        Number(product.price || 0) +
-                        Number(product.insurance || 0) +
-                        Number(product.vppAmount || 0);
-
-                });
-
-                topayProducts.forEach(product => {
-
-                    totalToPay +=
-                        Number(product.price || 0) +
-                        Number(product.insurance || 0) +
-                        Number(product.vppAmount || 0);
-
-                });
-
-            }
-
-            // Fully Paid
-            else if (
-                booking.productDetails?.every(
-                    p => p.topay?.toLowerCase() === "paid"
-                )
-            ) {
-
-                totalPaid +=
-                    Number(booking.grandTotal || 0);
-
-            }
-
-            // Fully ToPay
-            else {
-
-                totalToPay +=
-                    Number(booking.grandTotal || 0);
-
+            if (status === "paid") {
+                totalPaid += revenue;
+            } else {
+                totalToPay += revenue;
             }
 
         });
@@ -449,13 +407,22 @@ const ViewQuotationBtDate = () => {
         // ===== TABLE BODY =====
         const body = sortedBookings.map((b, index) => {
             const product = b.productDetails?.[0] || {};
-            const total = b.grandTotal || 0;
+            const total =
+                Number(b.amount || 0) +
+                Number(b.freight || 0) +
+                Number(b.insVppAmount || 0);
 
             const paid =
-                product.topay === "paid" ? total : "";
+                product.topay?.toLowerCase() === "paid"
+                    ? total
+                    : "";
 
             const toPay =
-                product.topay === "toPay" ? total : "";
+                ["topay", "none"].includes(
+                    String(product.topay || "").toLowerCase()
+                )
+                    ? total
+                    : "";
 
             return [
                 index + 1,
@@ -595,13 +562,22 @@ const ViewQuotationBtDate = () => {
     const downloadExcel = () => {
         const data = sortedBookings.map((b, index) => {
             const product = b.productDetails?.[0] || {};
-            const total = b.grandTotal || 0;
+            const total =
+                Number(b.amount || 0) +
+                Number(b.freight || 0) +
+                Number(b.insVppAmount || 0);
 
             const paid =
-                product.topay === "paid" ? total : "";
+                product.topay?.toLowerCase() === "paid"
+                    ? total
+                    : "";
 
             const toPay =
-                product.topay === "toPay" ? total : "";
+                ["topay", "none"].includes(
+                    String(product.topay || "").toLowerCase()
+                )
+                    ? total
+                    : "";
 
             return {
                 "Booking ID": b.bookingId,
@@ -907,7 +883,10 @@ const ViewQuotationBtDate = () => {
                                             const productAmount = booking.amount || booking.productTotal || 0;
                                             const freightAmount = booking.freight || 0;
                                             const insVppAmount = booking.insVppAmount || 0;
-                                            const totalAmount = booking.grandTotal || 0;
+                                            const totalAmount =
+                                                Number(booking.amount || 0) +
+                                                Number(booking.freight || 0) +
+                                                Number(booking.insVppAmount || 0);
                                             const topayType = product.topay; // "toPay" | "paid"
                                             const paidText =
                                                 topayType === "paid" ? `₹${totalAmount}` : "-";
@@ -1022,17 +1001,25 @@ const ViewQuotationBtDate = () => {
 
                                                     {/* Paid */}
                                                     <TableCell>
-                                                        {booking.paidAmount > 0
-                                                            ? `₹${booking.paidAmount}`
-                                                            : "-"
+                                                        {
+                                                            product.topay?.toLowerCase() === "paid"
+                                                                ? `₹${Number(booking.amount || 0) +
+                                                                Number(booking.freight || 0) +
+                                                                Number(booking.insVppAmount || 0)}`
+                                                                : "-"
                                                         }
                                                     </TableCell>
 
                                                     {/* To Pay */}
                                                     <TableCell>
-                                                        {product.topay === "toPay"
-                                                            ? `₹${booking.grandTotal}`
-                                                            : "-"
+                                                        {
+                                                            ["topay", "none"].includes(
+                                                                String(product.topay || "").toLowerCase()
+                                                            )
+                                                                ? `₹${Number(booking.amount || 0) +
+                                                                Number(booking.freight || 0) +
+                                                                Number(booking.insVppAmount || 0)}`
+                                                                : "-"
                                                         }
                                                     </TableCell>
 

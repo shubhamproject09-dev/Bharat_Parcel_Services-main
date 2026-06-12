@@ -312,58 +312,23 @@ export const getBookingSummaryByDate = async (req, res) => {
 
     bookings.forEach((booking) => {
 
-      const paidProducts =
-        booking.productDetails?.filter(
-          p => p.topay?.toLowerCase() === "paid"
-        ) || [];
+      const revenue =
+        Number(booking.amount || 0) +
+        Number(booking.freight || 0) +
+        Number(booking.insVppAmount || 0);
 
-      const topayProducts =
-        booking.productDetails?.filter(
-          p => p.topay?.toLowerCase() === "topay"
-        ) || [];
-
-      if (
-        paidProducts.length > 0 &&
-        topayProducts.length > 0
-      ) {
-
-        paidProducts.forEach(product => {
-
-          totalPaid +=
-            Number(product.price || 0) +
-            Number(product.insurance || 0) +
-            Number(product.vppAmount || 0);
-
-        });
-
-        topayProducts.forEach(product => {
-
-          totalToPay +=
-            Number(product.price || 0) +
-            Number(product.insurance || 0) +
-            Number(product.vppAmount || 0);
-
-        });
-
-      }
-
-      else if (
+      const isPaid =
         booking.productDetails?.every(
           p => p.topay?.toLowerCase() === "paid"
-        )
-      ) {
-
-        totalPaid += Number(
-          booking.grandTotal || 0
         );
 
-      }
+      if (isPaid) {
 
-      else {
+        totalPaid += revenue;
 
-        totalToPay += Number(
-          booking.grandTotal || 0
-        );
+      } else {
+
+        totalToPay += revenue;
 
       }
 

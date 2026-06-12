@@ -324,7 +324,7 @@ const QuotationForm = () => {
                           }
                           setFieldValue("quotationDate", val);
                         }}
-                        minDate={getDateBeforeDays(25)}
+                        minDate={getDateBeforeDays(35)}
                         maxDate={today}   // ✅ future disabled
                         format="dd/MM/yyyy"
                         slotProps={{
@@ -346,7 +346,7 @@ const QuotationForm = () => {
                         onChange={(val) =>
                           setFieldValue("proposedDeliveryDate", val)
                         }
-                        minDate={values.quotationDate || getDateBeforeDays(25)}
+                        minDate={values.quotationDate || getDateBeforeDays(35)}
                         format="dd/MM/yyyy"
                         slotProps={{
                           textField: {

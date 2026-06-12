@@ -58,14 +58,23 @@ const createManageStation = asyncHandler(async (req, res) => {
 
 // Get All Stations
 const getAllStations = asyncHandler(async (req, res) => {
-  const stations = await manageStation.find().select("stationId stationName contact");
+  const stations = await manageStation.find()
+    .select(
+      "stationId stationName contact address gst city state pincode emailId"
+    );
 
   const formattedStations = stations.map((station, index) => ({
     sNo: index + 1,
     _id: station._id,
     stationId: station.stationId,
     stationName: station.stationName,
-    contactNumber: station.contact
+    contactNumber: station.contact,
+    emailId: station.emailId,
+    address: station.address,
+    gst: station.gst,
+    city: station.city,
+    state: station.state,
+    pincode: station.pincode
   }));
 
   res.status(200).json(new ApiResponse(200, "Stations fetched successfully", formattedStations));

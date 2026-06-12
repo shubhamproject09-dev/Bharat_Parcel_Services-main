@@ -158,21 +158,17 @@ const ViewBookingByDate = () => {
                 topayItems.length > 0
             ) {
 
-                paidItems.forEach(item => {
+                totalPaid += paidItems.reduce(
+                    (sum, item) =>
+                        sum + Number(item.insuranceTotalWithGST || 0),
+                    0
+                );
 
-                    totalPaid +=
-                        Number(item.amount || 0) +
-                        Number(item.insuranceTotalWithGST || 0);
-
-                });
-
-                topayItems.forEach(item => {
-
-                    totalToPay +=
-                        Number(item.amount || 0) +
-                        Number(item.insuranceTotalWithGST || 0);
-
-                });
+                totalToPay += Number(
+                    booking.deliveryPendingAmount ||
+                    booking.grandTotal ||
+                    0
+                );
 
             }
 
@@ -393,6 +389,7 @@ const ViewBookingByDate = () => {
                 ) || [];
 
             // Mixed booking
+            // Mixed booking
             if (
                 paidItems.length > 0 &&
                 topayItems.length > 0
@@ -401,16 +398,13 @@ const ViewBookingByDate = () => {
                 paidAmount = paidItems.reduce(
                     (sum, item) =>
                         sum +
-                        Number(item.amount || 0) +
                         Number(item.insuranceTotalWithGST || 0),
                     0
                 );
 
-                toPayAmount = topayItems.reduce(
-                    (sum, item) =>
-                        sum +
-                        Number(item.amount || 0) +
-                        Number(item.insuranceTotalWithGST || 0),
+                toPayAmount = Number(
+                    b.deliveryPendingAmount ||
+                    b.grandTotal ||
                     0
                 );
 
@@ -599,16 +593,13 @@ const ViewBookingByDate = () => {
                 paidAmount = paidItems.reduce(
                     (sum, item) =>
                         sum +
-                        Number(item.amount || 0) +
                         Number(item.insuranceTotalWithGST || 0),
                     0
                 );
 
-                toPayAmount = topayItems.reduce(
-                    (sum, item) =>
-                        sum +
-                        Number(item.amount || 0) +
-                        Number(item.insuranceTotalWithGST || 0),
+                toPayAmount = Number(
+                    b.deliveryPendingAmount ||
+                    b.grandTotal ||
                     0
                 );
 
@@ -969,7 +960,13 @@ const ViewBookingByDate = () => {
                                                     );
 
                                             const toPayValue =
-                                                Number(topayItem?.amount || 0);
+                                                topayItem
+                                                    ? Number(
+                                                        booking.deliveryPendingAmount ||
+                                                        booking.grandTotal ||
+                                                        0
+                                                    )
+                                                    : 0;
 
                                             const amount =
                                                 Number(topayItem?.amount) ||

@@ -735,10 +735,12 @@ export const getPendingInvoiceDeliveries =
 
         if (invoiceType) {
 
-          const type =
-            d.bookingId?.items?.[0]?.toPay;
+          const hasMatchingType =
+            d.bookingId?.items?.some(
+              item => item.toPay === invoiceType
+            );
 
-          if (type !== invoiceType)
+          if (!hasMatchingType)
             return false;
         }
 

@@ -1137,21 +1137,17 @@ export const getBookingSummaryByDate = async (req, res) => {
         topayItems.length > 0
       ) {
 
-        paidItems.forEach(item => {
+        totalPaid += paidItems.reduce(
+          (sum, item) =>
+            sum + Number(item.insuranceTotalWithGST || 0),
+          0
+        );
 
-          totalPaid +=
-            Number(item.amount || 0) +
-            Number(item.insuranceTotalWithGST || 0);
-
-        });
-
-        topayItems.forEach(item => {
-
-          totalToPay +=
-            Number(item.amount || 0) +
-            Number(item.insuranceTotalWithGST || 0);
-
-        });
+        totalToPay += Number(
+          booking.deliveryPendingAmount ||
+          booking.grandTotal ||
+          0
+        );
 
       }
 
@@ -2555,6 +2551,8 @@ export const generateCAReport = async (req, res) => {
 
     };
 
+    let stationAddress = "";
+    let stationGST = "";
     // =========================
     // SUPERVISOR STATION FILTER
     // =========================
@@ -2563,16 +2561,20 @@ export const generateCAReport = async (req, res) => {
 
       const station =
         await Station.findOne({
-          stationName:
-            req.user.startStation
+          stationName: req.user.startStation
         });
 
       if (!station) {
-
         return res.status(404).json({
           message: "Station not found"
         });
       }
+
+      stationAddress =
+        station.address || "";
+
+      stationGST =
+        station.gst || "";
 
       // DELHI supervisor => AGRA included
 
@@ -2796,33 +2798,77 @@ export const generateCAReport = async (req, res) => {
 
     doc.setFontSize(16);
 
-    doc.setFillColor(25, 95, 170);
+    doc.setFillColor(15, 82, 186);
 
     doc.rect(
       0,
       0,
       210,
-      35,
+      50,
       "F"
     );
 
     doc.setTextColor(255, 255, 255);
 
-    doc.setFontSize(22);
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(24);
 
     doc.text(
-      "Bharat Parcel Services Pvt. Ltd.",
+      "BHARAT PARCEL SERVICES PVT. LTD.",
       105,
-      12,
+      14,
       { align: "center" }
     );
 
     doc.setFontSize(14);
 
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
     doc.text(
       "CA REPORT",
       105,
-      24,
+      25,
+      { align: "center" }
+    );
+
+    doc.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    doc.setFontSize(9);
+
+    const addressLines =
+      doc.splitTextToSize(
+        stationAddress,
+        160
+      );
+
+    doc.text(
+      addressLines,
+      105,
+      34,
+      { align: "center" }
+    );
+
+    doc.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    doc.setFontSize(10);
+
+    doc.text(
+      `GSTIN : ${stationGST}`,
+      105,
+      40,
       { align: "center" }
     );
 
@@ -2833,23 +2879,24 @@ export const generateCAReport = async (req, res) => {
     doc.text(
       `Period : ${moment(fromDate).format("DD-MM-YYYY")} To ${moment(toDate).format("DD-MM-YYYY")}`,
       105,
-      48,
+      65,
       { align: "center" }
     );
 
     doc.text(
       `Months : ${monthText}`,
       105,
-      56,
+      74,
       { align: "center" }
     );
 
     autoTable(doc, {
-      startY: 65,
+      startY: 85,
 
       head: [[
         "S.No",
         "Invoice No",
+        "Invoice Date",
         "Bill Name",
         "GST No",
         "Amount",
@@ -2861,6 +2908,7 @@ export const generateCAReport = async (req, res) => {
       body: reportData.map(row => [
         row.sNo,
         row.invoiceNumber,
+        row.invoiceDate,
         row.billName,
         row.gstNo,
         row.totalAmount,

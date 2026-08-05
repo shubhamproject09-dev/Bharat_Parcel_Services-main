@@ -214,8 +214,21 @@ const TrackerCard = () => {
                 0
             );
 
-            const totalGST = rows.reduce(
-                (sum, r) => sum + Number(r.gstAmount || 0),
+            const totalCGST = rows.reduce(
+                (sum, r) =>
+                    sum + Number(r.cgstAmount || 0),
+                0
+            );
+
+            const totalSGST = rows.reduce(
+                (sum, r) =>
+                    sum + Number(r.sgstAmount || 0),
+                0
+            );
+
+            const totalIGST = rows.reduce(
+                (sum, r) =>
+                    sum + Number(r.igstAmount || 0),
                 0
             );
 
@@ -256,7 +269,7 @@ const TrackerCard = () => {
 
             // Header
             doc.setFillColor(21, 101, 192);
-            doc.rect(0, 0, 210, 28, "F");
+            doc.rect(0, 0, 210, 35, "F");
 
             doc.setTextColor(255, 255, 255); // White Text
 
@@ -280,6 +293,22 @@ const TrackerCard = () => {
                 { align: "center" }
             );
 
+            doc.setFontSize(8);
+
+            doc.text(
+                data.stationAddress || "",
+                105,
+                25,
+                { align: "center" }
+            );
+
+            doc.text(
+                `GSTIN : ${data.stationGST || ""}`,
+                105,
+                30,
+                { align: "center" }
+            );
+
             doc.setTextColor(0, 0, 0);
 
             doc.setFontSize(10);
@@ -287,21 +316,31 @@ const TrackerCard = () => {
             doc.text(
                 `Period : ${formatDisplayDate(caFromDate)} To ${formatDisplayDate(caToDate)}`,
                 105,
-                35,
+                40,
                 { align: "center" }
             );
 
             doc.text(
                 `Months : ${monthText}`,
                 105,
-                40,
+                45,
                 { align: "center" }
             );
+            doc.setFont("helvetica", "bold");
+
+            doc.text(
+                "SAC Code : 9968",
+                105,
+                50,
+                { align: "center" }
+            );
+
+            doc.setFont("helvetica", "normal");
 
             // Table
 
             autoTable(doc, {
-                startY: 46,
+                startY: 60,
 
                 margin: {
                     left: 8,
@@ -311,21 +350,27 @@ const TrackerCard = () => {
                 head: [[
                     "S No",
                     "Invoice No",
+                    "Invoice Date",
                     "Bill Name",
                     "GST No",
                     "Amount",
-                    "GST",
+                    "CGST 9%",
+                    "SGST 9%",
+                    "IGST 18%",
                     "Bilty",
-                    "Grand Total"
+                    "Grand Total",
                 ]],
 
                 body: rows.map(r => [
                     r.sNo,
                     r.invoiceNumber,
+                    r.invoiceDate,
                     r.billName,
                     r.gstNo,
                     Math.round(r.totalAmount || 0),
-                    Math.round(r.gstAmount || 0),
+                    Math.round(r.cgstAmount || 0),
+                    Math.round(r.sgstAmount || 0),
+                    Math.round(r.igstAmount || 0),
                     Math.round(r.biltyAmount || 0),
                     Math.round(r.grandTotal || 0)
                 ]),
@@ -437,13 +482,43 @@ const TrackerCard = () => {
             sy += 10;
 
             doc.text(
-                `GST`,
+                `CGST`,
                 114,
                 sy
             );
 
             doc.text(
-                `Rs. ${Math.round(totalGST)}`,
+                `Rs. ${Math.round(totalCGST)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 10;
+
+            doc.text(
+                `SGST`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalSGST)}`,
+                190,
+                sy,
+                { align: "right" }
+            );
+
+            sy += 10;
+
+            doc.text(
+                `IGST`,
+                114,
+                sy
+            );
+
+            doc.text(
+                `Rs. ${Math.round(totalIGST)}`,
                 190,
                 sy,
                 { align: "right" }

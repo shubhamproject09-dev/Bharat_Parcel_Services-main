@@ -71,7 +71,7 @@ const initialValues = {
   freight: "",
   ins_vpp: "",
   billTotal: "",
-  biltyAmount: "20",
+  biltyCharge: "",
   cgst: "",
   sgst: "",
   igst: "",
@@ -82,7 +82,7 @@ const initialValues = {
 const totalFields = [
   { name: "freight", label: "FREIGHT", readOnly: false },
   { name: "ins_vpp", label: "INS/VPP", readOnly: false },
-  { name: "biltyAmount", label: "BILTY AMOUNT", readOnly: true },
+  { name: "biltyCharge", label: "BILTY CHARGE", readOnly: false },
   { name: "billTotal", label: "Bill Total", readOnly: true },
   { name: "cgst", label: "CGST%", readOnly: false },
   { name: "sgst", label: "SGST%", readOnly: false },
@@ -93,7 +93,7 @@ const totalFields = [
 
 const calculateTotals = (values) => {
   const items = values.items || [];
-  const biltyAmount = 20;
+  const biltyCharge = Number(values.biltyCharge || 0);
 
   // Freight Total
   const itemTotal = items.reduce(
@@ -108,7 +108,7 @@ const calculateTotals = (values) => {
   const taxableAmount = freight + ins_vpp;
 
   // Bill Total before GST
-  const billTotal = taxableAmount + biltyAmount;
+  const billTotal = taxableAmount + biltyCharge;
 
   // GST
   const cgst = (taxableAmount * Number(values.cgst || 0)) / 100;
@@ -129,7 +129,7 @@ const calculateTotals = (values) => {
     billTotal: billTotal.toFixed(2),
     grandTotal: rounded.toFixed(2),
     roundOff,
-    biltyAmount: biltyAmount.toFixed(2),
+    biltyCharge: biltyCharge.toFixed(2),
     autoFreight: itemTotal.toFixed(2),
   };
 };
@@ -186,8 +186,8 @@ const validationSchema = Yup.object().shape({
   billTotal: Yup.number()
     .typeError("Bill Total must be a number")
     .min(0, "Cannot be negative"),
-  biltyAmount: Yup.number()
-    .typeError("Bilty Amount must be a number")
+  biltyCharge: Yup.number()
+    .typeError("Bilty Charge must be a number")
     .min(0, "Cannot be negative"),
   cgst: Yup.number()
     .typeError("CGST must be a number")
@@ -288,7 +288,7 @@ const EditBooking = () => {
           deliveryDate: parseBackendDate(viewedBooking?.deliveryDate),
           startStation: viewedBooking?.startStation?.stationName || "",
           endStation: viewedBooking?.endStation?.stationName || "",
-          biltyAmount: "20",
+          biltyCharge: viewedBooking?.biltyCharge || "0",
           roundOff: viewedBooking?.roundOff || "0.00",
         }}
         validationSchema={validationSchema}
@@ -1001,13 +1001,11 @@ const EffectSyncTotals = ({ values, setFieldValue }) => {
     setFieldValue("billTotal", totals.billTotal);
     setFieldValue("grandTotal", totals.grandTotal);
     setFieldValue("roundOff", totals.roundOff);
-    setFieldValue("biltyAmount", totals.biltyAmount);
-
-
   }, [
     values.items,
     values.freight,
     values.ins_vpp,
+    values.biltyCharge,
     values.cgst,
     values.sgst,
     values.igst,

@@ -1,22 +1,36 @@
 import React, { useEffect, useState } from "react";
 import {
+    Box,
     Paper,
     Typography,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     CircularProgress,
     Chip,
-    Box,
-    Button
+    Button,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    IconButton,
+    TableCell,
+    TableBody,
+    TableRow,
+    Table,
+    TableHead,
+    TableContainer
 } from "@mui/material";
+
+import {
+    History as HistoryIcon,
+    Visibility as VisibilityIcon,
+    Close as CloseIcon
+} from "@mui/icons-material";
 
 import { BOOKINGS_API, FILES_BASE_URL } from "../../src/utils/api";
 
 const CAReportHistory = () => {
+
+    const [pdfOpen, setPdfOpen] = useState(false);
+
+    const [selectedPdf, setSelectedPdf] = useState("");
 
     const [loading, setLoading] =
         useState(true);
@@ -62,6 +76,15 @@ const CAReportHistory = () => {
         }
     };
 
+    const handleViewPdf = (pdfPath) => {
+
+        setSelectedPdf(
+            `${FILES_BASE_URL}${pdfPath}`
+        );
+
+        setPdfOpen(true);
+    };
+
     const formatDate = (date) => {
 
         if (!date) return "-";
@@ -90,19 +113,51 @@ const CAReportHistory = () => {
     return (
 
         <Paper
+            elevation={0}
             sx={{
                 p: 3,
-                borderRadius: 3
+                borderRadius: 4,
+                background: "#fff",
+                border: "1px solid",
+                borderColor: "grey.100",
+                boxShadow:
+                    "0 10px 40px rgba(0,0,0,0.08)"
             }}
         >
 
-            <Typography
-                variant="h5"
-                fontWeight={700}
-                mb={3}
+            <Box
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    mb: 3
+                }}
             >
-                CA Report History
-            </Typography>
+
+                <HistoryIcon
+                    color="primary"
+                    sx={{ fontSize: 35 }}
+                />
+
+                <Box>
+
+                    <Typography
+                        variant="h5"
+                        fontWeight={700}
+                    >
+                        CA Report History
+                    </Typography>
+
+                    <Typography
+                        variant="body2"
+                        color="text.secondary"
+                    >
+                        Downloaded CA Reports
+                    </Typography>
+
+                </Box>
+
+            </Box>
 
             <TableContainer>
 
@@ -118,6 +173,10 @@ const CAReportHistory = () => {
 
                             <TableCell>
                                 Months
+                            </TableCell>
+
+                            <TableCell>
+                                SAC Code
                             </TableCell>
 
                             <TableCell>
@@ -175,6 +234,10 @@ const CAReportHistory = () => {
                                         </TableCell>
 
                                         <TableCell>
+                                            {row.sacCode || "9968"}
+                                        </TableCell>
+
+                                        <TableCell>
                                             {
                                                 formatDate(
                                                     row.fromDate
@@ -219,18 +282,42 @@ const CAReportHistory = () => {
                                         </TableCell>
                                         <TableCell>
 
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                onClick={() =>
-                                                    window.open(
-                                                        `${FILES_BASE_URL}${row.pdfPath}`,
-                                                        "_blank"
-                                                    )
-                                                }
+                                            <Box
+                                                sx={{
+                                                    display: "flex",
+                                                    gap: 1
+                                                }}
                                             >
-                                                View
-                                            </Button>
+
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    startIcon={<VisibilityIcon />}
+                                                    size="small"
+                                                    onClick={() =>
+                                                        handleViewPdf(
+                                                            row.pdfPath
+                                                        )
+                                                    }
+                                                >
+                                                    View
+                                                </Button>
+
+                                                <Button
+                                                    variant="contained"
+                                                    color="success"
+                                                    size="small"
+                                                    onClick={() =>
+                                                        window.open(
+                                                            `${FILES_BASE_URL}${row.excelPath}`,
+                                                            "_blank"
+                                                        )
+                                                    }
+                                                >
+                                                    Excel
+                                                </Button>
+
+                                            </Box>
 
                                         </TableCell>
 
@@ -244,7 +331,55 @@ const CAReportHistory = () => {
                 </Table>
 
             </TableContainer>
+            <Dialog
+                open={pdfOpen}
+                onClose={() =>
+                    setPdfOpen(false)
+                }
+                fullScreen
+            >
 
+                <DialogTitle
+                    sx={{
+                        display: "flex",
+                        justifyContent:
+                            "space-between",
+                        alignItems: "center"
+                    }}
+                >
+
+                    CA Report Preview
+
+                    <IconButton
+                        onClick={() =>
+                            setPdfOpen(false)
+                        }
+                    >
+                        <CloseIcon />
+                    </IconButton>
+
+                </DialogTitle>
+
+                <DialogContent
+                    sx={{
+                        p: 0
+                    }}
+                >
+
+                    <iframe
+                        src={selectedPdf}
+                        width="100%"
+                        height="100%"
+                        style={{
+                            border: "none",
+                            minHeight: "90vh"
+                        }}
+                        title="CA Report"
+                    />
+
+                </DialogContent>
+
+            </Dialog>
         </Paper>
     );
 };

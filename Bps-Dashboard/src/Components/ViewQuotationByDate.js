@@ -200,9 +200,7 @@ const ViewQuotationBtDate = () => {
         filteredBookings.forEach((booking) => {
 
             const revenue =
-                Number(booking.amount || 0) +
-                Number(booking.freight || 0) +
-                Number(booking.insVppAmount || 0);
+                Math.round(Number(booking.grandTotal || 0));
 
             const status =
                 booking.productDetails?.[0]?.topay?.toLowerCase();
@@ -396,7 +394,7 @@ const ViewQuotationBtDate = () => {
             "Route",
             "QT",
             "Wt",
-            "Freight",
+            "Bilty Charge",
             "INS/VPP",
             "Paid",
             "To Pay",
@@ -408,9 +406,7 @@ const ViewQuotationBtDate = () => {
         const body = sortedBookings.map((b, index) => {
             const product = b.productDetails?.[0] || {};
             const total =
-                Number(b.amount || 0) +
-                Number(b.freight || 0) +
-                Number(b.insVppAmount || 0);
+                Math.round(Number(b.grandTotal || 0));
 
             const paid =
                 product.topay?.toLowerCase() === "paid"
@@ -437,7 +433,7 @@ const ViewQuotationBtDate = () => {
                 `${b.startStationName} - ${b.endStation}`,
                 product.quantity || 0,
                 product.weight || 0,
-                b.freight || 0,
+                b.biltyCharge || 0,
                 b.insVppAmount || 0,
                 paid,
                 toPay,
@@ -513,9 +509,9 @@ const ViewQuotationBtDate = () => {
             body: [
                 ["Total Bookings", summary.totalBookings],
                 ["Total Items", summary.totalItems],
-                ["Total Paid Amount", summary.totalPaid],
-                ["Total To Pay Amount", summary.totalToPay],
-                ["Grand Total Amount", summary.totalValue],
+                ["Total Paid Amount", Math.round(summary.totalPaid)],
+                ["Total To Pay Amount", Math.round(summary.totalToPay)],
+                ["Grand Total Amount", Math.round(summary.totalValue)],
                 ["Fully Paid Count", summary.paymentBreakdown.fullyPaid],
                 ["ToPay Received",
                     summary.paymentBreakdown.partiallyPaid],
@@ -563,9 +559,7 @@ const ViewQuotationBtDate = () => {
         const data = sortedBookings.map((b, index) => {
             const product = b.productDetails?.[0] || {};
             const total =
-                Number(b.amount || 0) +
-                Number(b.freight || 0) +
-                Number(b.insVppAmount || 0);
+                Math.round(Number(b.grandTotal || 0));
 
             const paid =
                 product.topay?.toLowerCase() === "paid"
@@ -591,7 +585,7 @@ const ViewQuotationBtDate = () => {
                 "QT": product.quantity || 0,
                 "Weight": product.weight || 0,
                 "Amount": b.amount || b.productTotal || 0,
-                "Freight": b.freight || 0,
+                "Bilty Charge": b.biltyCharge || 0,
                 "INS / VPP": b.insVppAmount || 0,
                 "Paid": paid,
                 "To Pay": toPay,
@@ -610,9 +604,9 @@ const ViewQuotationBtDate = () => {
 
         data.push({ "Booking ID": "Total Bookings", "Total": summary.totalBookings });
         data.push({ "Booking ID": "Total Items", "Total": summary.totalItems });
-        data.push({ "Booking ID": "Total Paid Amount", "Total": Number(summary.totalPaid) });
-        data.push({ "Booking ID": "Total To Pay Amount", "Total": Number(summary.totalToPay) });
-        data.push({ "Booking ID": "Grand Total Amount", "Total": Number(summary.totalValue) });
+        data.push({ "Booking ID": "Total Paid Amount", "Total": Math.round(summary.totalPaid) });
+        data.push({ "Booking ID": "Total To Pay Amount", "Total": Math.round(summary.totalToPay) });
+        data.push({ "Booking ID": "Grand Total Amount", "Total": Math.round(summary.totalValue) });
         data.push({ "Booking ID": "Fully Paid Count", "Total": summary.paymentBreakdown.fullyPaid });
         data.push({ "Booking ID": "ToPay Received", "Total": summary.paymentBreakdown.partiallyPaid });
         data.push({ "Booking ID": "ToPay Count", "Total": summary.paymentBreakdown.unpaid });
@@ -881,12 +875,10 @@ const ViewQuotationBtDate = () => {
                                             const product = booking.productDetails?.[0] || {};
                                             const globalIndex = (page - 1) * rowsPerPage + index + 1;
                                             const productAmount = booking.amount || booking.productTotal || 0;
-                                            const freightAmount = booking.freight || 0;
+                                            const biltyCharge = Number(booking.biltyCharge || 0);
                                             const insVppAmount = booking.insVppAmount || 0;
                                             const totalAmount =
-                                                Number(booking.amount || 0) +
-                                                Number(booking.freight || 0) +
-                                                Number(booking.insVppAmount || 0);
+                                                Math.round(Number(booking.grandTotal || 0));
                                             const topayType = product.topay; // "toPay" | "paid"
                                             const paidText =
                                                 topayType === "paid" ? `₹${totalAmount}` : "-";
@@ -972,10 +964,10 @@ const ViewQuotationBtDate = () => {
 
                                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                                 <Typography variant="caption" sx={{ minWidth: 80 }}>
-                                                                    Freight:
+                                                                    Bilty Charge:
                                                                 </Typography>
                                                                 <Typography color="info.main">
-                                                                    ₹{freightAmount}
+                                                                    ₹{biltyCharge}
                                                                 </Typography>
                                                             </Box>
 
@@ -1003,9 +995,7 @@ const ViewQuotationBtDate = () => {
                                                     <TableCell>
                                                         {
                                                             product.topay?.toLowerCase() === "paid"
-                                                                ? `₹${Number(booking.amount || 0) +
-                                                                Number(booking.freight || 0) +
-                                                                Number(booking.insVppAmount || 0)}`
+                                                                ? `₹${Math.round(Number(booking.grandTotal || 0))}`
                                                                 : "-"
                                                         }
                                                     </TableCell>
@@ -1016,9 +1006,7 @@ const ViewQuotationBtDate = () => {
                                                             ["topay", "none"].includes(
                                                                 String(product.topay || "").toLowerCase()
                                                             )
-                                                                ? `₹${Number(booking.amount || 0) +
-                                                                Number(booking.freight || 0) +
-                                                                Number(booking.insVppAmount || 0)}`
+                                                                ? `₹${Math.round(Number(booking.grandTotal || 0))}`
                                                                 : "-"
                                                         }
                                                     </TableCell>
@@ -1092,18 +1080,18 @@ const ViewQuotationBtDate = () => {
 
                                             <TableRow>
                                                 <TableCell><strong>Paid Amount</strong></TableCell>
-                                                <TableCell align="right">₹{summary.totalPaid.toLocaleString()}</TableCell>
+                                                <TableCell align="right">₹{Math.round(summary.totalPaid).toLocaleString()}</TableCell>
                                             </TableRow>
 
                                             <TableRow>
                                                 <TableCell><strong>ToPay Amount</strong></TableCell>
                                                 <TableCell align="right">
-                                                    ₹{summary.totalToPay.toLocaleString()}
+                                                    ₹{Math.round(summary.totalToPay).toLocaleString()}
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
                                                 <TableCell><strong>Total Value</strong></TableCell>
-                                                <TableCell align="right">₹{summary.totalValue.toLocaleString()}</TableCell>
+                                                <TableCell align="right">₹{Math.round(summary.totalValue).toLocaleString()}</TableCell>
                                             </TableRow>
 
                                         </TableBody>

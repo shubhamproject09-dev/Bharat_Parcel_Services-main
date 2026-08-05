@@ -222,6 +222,11 @@ const BookingSchema = new mongoose.Schema(
       required: true
     },
 
+    biltyCharge: {
+      type: Number,
+      default: 0
+    },
+
     // Calculated totals
     billTotal: {
       type: Number
@@ -366,7 +371,8 @@ BookingSchema.pre("save", async function (next) {
         (this.ins_vpp || 0) +
         (this.cgst || 0) +
         (this.sgst || 0) +
-        (this.igst || 0);
+        (this.igst || 0) +
+        (this.biltyCharge || 0);
     }
 
     this.computedTotalRevenue = this.grandTotal;

@@ -47,8 +47,10 @@ import {
     clearViewedBooking
 } from "../../../features/booking/bookingSlice";
 
-const normalizeText = (text = '') =>
-    text.toString().toLowerCase().replace(/\s+/g, ' ').trim();
+const normalizeText = (text = "") => {
+    if (text === null || text === undefined) return "";
+    return text.toString().toLowerCase().replace(/\s+/g, " ").trim();
+};
 
 const getLastNumber = (text = '') => {
     const match = text.match(/\d+$/); // last digits

@@ -8,6 +8,8 @@ import {
   TextField,
   Typography,
   InputAdornment,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -91,7 +93,8 @@ const generateInitialValues = () => {
     freight: "",
     ins_vpp: "",
     billTotal: "",
-    biltyAmount: "20",
+    biltyCharge: 20,
+    isBiltyCharge: true,
     cgst: "",
     sgst: "",
     igst: "",
@@ -108,18 +111,18 @@ const totalFields = [
   { name: "igst", label: "IGST%", readOnly: false },
   { name: "grandTotal", label: "Grand Total", readOnly: true },
   { name: "roundOff", label: "Round Off", readOnly: true },
-  { name: "biltyAmount", label: "BILTY AMOUNT", readOnly: true },
 ];
 const calculateTotals = (values) => {
   const items = values.items || [];
-
-  const biltyAmount = 20;
 
   const itemTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const freight = Number(values.freight || itemTotal);
   const ins_vpp = Number(values.ins_vpp || 0);
   const taxableAmount = freight + ins_vpp;
-  const billTotal = taxableAmount + biltyAmount;
+  const biltyCharge = values.isBiltyCharge
+    ? Number(values.biltyCharge || 20)
+    : 0;
+  const billTotal = taxableAmount + biltyCharge;
 
   const cgst = (Number(values.cgst || 0) / 100) * taxableAmount;
   const sgst = (Number(values.sgst || 0) / 100) * taxableAmount;
@@ -141,7 +144,7 @@ const calculateTotals = (values) => {
     sgst: sgst.toFixed(2),
     igst: igst.toFixed(2),
     roundOff,
-    biltyAmount: biltyAmount.toFixed(2),
+    biltyCharge: biltyCharge.toFixed(2),
     autoFreight: itemTotal.toFixed(2)
   };
 };
@@ -292,6 +295,9 @@ const BookingForm = () => {
             // ✅ Clean payload (remove perKg)
             const payload = {
               ...values,
+              biltyCharge: values.isBiltyCharge
+                ? Number(values.biltyCharge || 20)
+                : 0,
               items: values.items.map(({ perKg, ...rest }) => rest),
             };
 
@@ -999,6 +1005,35 @@ const BookingForm = () => {
                           />
                         </Grid>
                       ))}
+                      <Grid size={{ xs: 12 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={values.isBiltyCharge}
+                              onChange={(e) => {
+                                setFieldValue("isBiltyCharge", e.target.checked);
+
+                                if (e.target.checked) {
+                                  setFieldValue("biltyCharge", 20);
+                                } else {
+                                  setFieldValue("biltyCharge", 0);
+                                }
+                              }}
+                            />
+                          }
+                          label="Add Bilty Charge (₹20)"
+                        />
+
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Bilty Charge"
+                          name="biltyCharge"
+                          value={values.biltyCharge}
+                          disabled={!values.isBiltyCharge}
+                          onChange={handleChange}
+                        />
+                      </Grid>
                     </Grid>
                   </Grid>
 
@@ -1118,7 +1153,6 @@ const EffectSyncTotals = ({ values, setFieldValue }) => {
     setFieldValue("billTotal", totals.billTotal);
     setFieldValue("grandTotal", totals.grandTotal);
     setFieldValue("roundOff", totals.roundOff);
-    setFieldValue("biltyAmount", totals.biltyAmount);
   }, [
     values.items,
     values.freight,
@@ -1126,6 +1160,7 @@ const EffectSyncTotals = ({ values, setFieldValue }) => {
     values.cgst,
     values.sgst,
     values.igst,
+    values.biltyCharge,
     setFieldValue
   ]);
 

@@ -207,13 +207,18 @@ const ViewQuotation = () => {
                     </Grid>
 
                     <Grid size={{ xs: 12, md: 4 }}>
-                        <TextField fullWidth label="Freight" value={q.freight} InputProps={{ readOnly: true }} />
+                        <TextField
+                            fullWidth
+                            label="Bilty Charge"
+                            value={q.biltyCharge}
+                            InputProps={{ readOnly: true }}
+                        />
                     </Grid>
                     <Grid size={{ xs: 12, md: 4 }}>
                         <TextField fullWidth label="Amount" value={q.amount} InputProps={{ readOnly: true }} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 4 }}>
-                        <TextField fullWidth label="Total Insurance" value={q.totalInsurance} InputProps={{ readOnly: true }} />
+                        <TextField fullWidth label="Total Insurance" value={q.insVppAmount} InputProps={{ readOnly: true }} />
                     </Grid>
                     <Grid size={{ xs: 12, md: 4 }}>
                         <TextField fullWidth label="Service Tax %" value={q.sTax} InputProps={{ readOnly: true }} />

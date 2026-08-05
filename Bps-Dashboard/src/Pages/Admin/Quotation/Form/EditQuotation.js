@@ -63,7 +63,7 @@ const initialValues = {
     ins_vpp: "",
     billTotal: "",
     grandTotal: "",
-    biltyAmount: "20",
+    biltyCharge: "",
     roundOff: "0.00",
     finalTotal: "",
     insVppAmount: "",
@@ -110,75 +110,45 @@ const EditQuotationForm = () => {
 
     const EffectSyncTotal = ({ values, setFieldValue }) => {
         useEffect(() => {
+            const biltyCharge =
+                values.biltyCharge === ""
+                    ? 0
+                    : Number(values.biltyCharge);
 
-            const biltyAmount = 20;
+            const amount = values.productDetails.reduce((sum, item) => {
+                return sum + Number(item.price || 0);
+            }, 0);
 
-            // Freight Total
-            const freight = values.productDetails.reduce(
-                (sum, item) => sum + (parseFloat(item.price) || 0),
-                0
-            );
+            const insVppAmount = Number(values.insVppAmount || 0);
 
-            // INS/VPP
-            const insVppAmount =
-                parseFloat(values.insVppAmount || 0);
+            const billTotal = amount + insVppAmount;
 
-            // TAXABLE AMOUNT
-            const taxableAmount =
-                freight + insVppAmount;
+            const gstPercent = Number(values.sTax || 0);
 
-            // GST %
-            const taxPercent =
-                parseFloat(values.sTax || 0);
+            const gstAmount = (billTotal * gstPercent) / 100;
 
-            // GST AMOUNT
-            const gstAmount =
-                (taxableAmount * taxPercent) / 100;
-
-            // RAW TOTAL
-            const rawTotal =
-                taxableAmount +
+            const grandTotal =
+                billTotal +
                 gstAmount +
-                biltyAmount;
+                biltyCharge;
 
-            const roundedTotal = Math.round(rawTotal);
+            const roundedTotal = Math.round(grandTotal);
 
-            // exact round off
             const roundOff = (
-                roundedTotal - rawTotal
+                roundedTotal - grandTotal
             ).toFixed(2);
 
-            // FINAL SET
-            setFieldValue(
-                "billTotal",
-                taxableAmount.toFixed(2)
-            );
-
-            setFieldValue(
-                "biltyAmount",
-                biltyAmount.toFixed(2)
-            );
-
-            setFieldValue(
-                "grandTotal",
-                rawTotal.toFixed(2)
-            );
-
-            setFieldValue(
-                "roundOff",
-                roundOff
-            );
-
-            setFieldValue(
-                "finalTotal",
-                roundedTotal.toFixed(2)
-            );
+            setFieldValue("amount", amount.toFixed(2), false);
+            setFieldValue("billTotal", billTotal.toFixed(2), false);
+            setFieldValue("grandTotal", grandTotal.toFixed(2), false);
+            setFieldValue("roundOff", roundOff, false);
+            setFieldValue("finalTotal", roundedTotal.toFixed(2), false);
 
         }, [
             values.productDetails,
             values.insVppAmount,
             values.sTax,
-            setFieldValue,
+            values.biltyCharge,
         ]);
 
         return null;
@@ -191,7 +161,7 @@ const EditQuotationForm = () => {
                 initialValues={{
                     ...initialValues,
                     ...viewedBooking,
-                    biltyAmount: viewedBooking?.biltyAmount || "20",
+                    biltyCharge: Number(viewedBooking?.biltyCharge ?? 0),
                     roundOff: viewedBooking?.roundOff || "0.00",
                     finalTotal: viewedBooking?.finalTotal || viewedBooking?.grandTotal || "",
                     insVppAmount:
@@ -689,13 +659,12 @@ const EditQuotationForm = () => {
 
                                         <Grid size={{ xs: 12 }} mb={2}>
                                             <TextField
-                                                name="biltyAmount"
-                                                label="Bilty Amount"
-                                                value={values.biltyAmount}
+                                                name="biltyCharge"
+                                                label="Bilty Charge"
+                                                value={values.biltyCharge}
+                                                onChange={handleChange}
+                                                type="number"
                                                 fullWidth
-                                                InputProps={{
-                                                    readOnly: true,
-                                                }}
                                             />
                                         </Grid>
 

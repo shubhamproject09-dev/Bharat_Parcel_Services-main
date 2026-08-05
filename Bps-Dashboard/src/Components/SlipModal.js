@@ -73,8 +73,7 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
     const topAddresses = addresses.slice(0, 2); // Delhi & Mumbai
     const bottomAddresses = addresses.slice(2); // Kolkata, Ahmedabad, Jaipur, Agra
 
-    // Bilty Amount fixed 20 रुपये
-    const biltyAmount = 20;
+    const biltyAmount = Number(bookingData?.biltyCharge || 0);
 
     const taxableAmount =
         Number(bookingData?.freight || 0) +
@@ -758,7 +757,7 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                                     }}>
                                         <TableCell sx={{ fontWeight: 'bold', fontSize: '11px', color: '#000' }}>Bill Total:</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 'bold', fontSize: '11px', color: '#000' }}>
-                                            {formatCurrency(bookingData?.billTotal)}
+                                            {formatCurrency(billTotal)}
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>
@@ -1413,10 +1412,31 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                         }
                         
                         .summary-table td {
-                            border: none !important;
-                            padding: 0.3mm 0.5mm !important;
-                            font-size: 9px !important;
-                        }
+    border: none !important;
+    padding: 1mm 1.5mm !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #000 !important;
+}
+
+.bill-total-row td {
+    border-top: 2px solid #000 !important;
+    border-bottom: 2px solid #000 !important;
+    background: #f5f5f5 !important;
+
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #000 !important;
+}
+
+.grand-total-row td {
+    border-top: 3px solid #d32f2f !important;
+    background: #ffebee !important;
+
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: #d32f2f !important;
+}
                         
                         .bill-total-row {
                             border-top: 2px solid #ccc !important;

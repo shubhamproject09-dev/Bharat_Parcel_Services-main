@@ -24,6 +24,13 @@ const caReportHistorySchema = new mongoose.Schema(
         pdfPath: {
             type: String
         },
+        excelFileName: {
+            type: String
+        },
+
+        excelPath: {
+            type: String
+        },
 
         createdAt: {
             type: Date,

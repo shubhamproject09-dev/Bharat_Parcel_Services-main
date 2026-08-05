@@ -115,7 +115,7 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
     (sum, item) => sum + (Number(item.price) || 0),
     0
   ) || 0;
-  const freight = bookingData?.freight || 0;
+  const biltyCharge = bookingData?.biltyCharge || 0;
   const insVppAmount = bookingData?.insVppAmount || 0; // यह आपके API में 900 है
   const grandTotal = bookingData?.grandTotal || 0; // यह आपके API में 1220 है
   const sTax = bookingData?.sTax || 0;
@@ -136,7 +136,7 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
     sum + (Number(item.vppAmount) || 0), 0) || 0;
 
   // बिल टोटल = amount + freight + insVppAmount
-  const billTotal = amount + freight + insVppAmount;
+  const billTotal = amount + biltyCharge + insVppAmount;
 
   // Calculate tax amounts based on API rates
   const sTaxAmount = (amount * sTax) / 100;
@@ -652,7 +652,7 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                   </TableRow>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 'bold', color: '#333' }}>Bilty Amount:</TableCell>
-                    <TableCell align="right">{formatCurrency(freight)}</TableCell>
+                    <TableCell align="right"> {formatCurrency(biltyCharge)}</TableCell>
                   </TableRow>
                   <TableRow sx={{
                     borderTop: '2px solid #ccc',
@@ -1332,10 +1332,31 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                         }
                         
                         .summary-table td {
-                            border: none !important;
-                            padding: 0.3mm 0.5mm !important;
-                            font-size: 9px !important;
-                        }
+    border: none !important;
+    padding: 1mm 1.5mm !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #000 !important;
+}
+
+.bill-total-row td {
+    border-top: 2px solid #000 !important;
+    border-bottom: 2px solid #000 !important;
+    background: #f5f5f5 !important;
+
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #000 !important;
+}
+
+.grand-total-row td {
+    border-top: 3px solid #d32f2f !important;
+    background: #ffebee !important;
+
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: #d32f2f !important;
+}
                         
                         .bill-total-row {
                             border-top: 2px solid #ccc !important;
@@ -1607,7 +1628,7 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                                         </tr>
                                         <tr>
                                             <td>Bilty Amount:</td>
-                                            <td align="right">${formatCurrency(freight)}</td>
+<td align="right">${formatCurrency(biltyCharge)}</td>
                                         </tr>
                                         <tr class="bill-total-row">
                                             <td><strong>Bill Total:</strong></td>
@@ -1831,7 +1852,7 @@ const QSlipModal = ({ open, handleClose, bookingData }) => {
                                         </tr> 
                                         <tr>
                                             <td>Bilty Amount:</td>
-                                            <td align="right">${formatCurrency(freight)}</td>
+                                            <td align="right">${formatCurrency(biltyCharge)}</td>
                                         </tr>
                                         <tr class="bill-total-row">
                                             <td><strong>Bill Total:</strong></td>

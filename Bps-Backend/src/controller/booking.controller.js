@@ -23,6 +23,7 @@ import CAReportHistory from "../model/caReportHistory.model.js";
 import CAReportCounter from "../model/CAReportCounter.js";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
 async function resolveStation(name) {
   const station = await Station.findOne({ stationName: new RegExp(`^${name}$`, 'i') });
   if (!station) throw new Error(`Station "${name}" not found`);
@@ -161,6 +162,7 @@ export const createBooking = async (req, res) => {
       cgst,
       sgst,
       igst,
+      biltyCharge = 0,
       billTotal,
       grandTotal
 
@@ -218,6 +220,7 @@ export const createBooking = async (req, res) => {
       cgst,
       sgst,
       igst,
+      biltyCharge,
       billTotal,
       grandTotal,
       createdByUser: user._id,
@@ -269,6 +272,7 @@ export const createPublicBooking = async (req, res) => {
       cgst,
       sgst,
       igst,
+      biltyCharge = 0,
       billTotal,
       grandTotal,
     } = req.body;
@@ -313,6 +317,7 @@ export const createPublicBooking = async (req, res) => {
       cgst,
       sgst,
       igst,
+      biltyCharge,
       billTotal,
       grandTotal,
       mobile,
@@ -471,31 +476,79 @@ export const sendBookingEmailById = async (req, res) => {
 export const updateBooking = async (req, res) => {
   try {
     const { id } = req.params;
+
     const updates = { ...req.body };
 
+    // Existing booking
+    const existingBooking = await Booking.findOne({ bookingId: id });
+
+    if (!existingBooking) {
+      return res.status(404).json({
+        message: "Booking not found",
+      });
+    }
+
+    // Resolve station names
     if (updates.startStation) {
       updates.startStation = await resolveStation(updates.startStation);
     }
+
     if (updates.endStation) {
       updates.endStation = await resolveStation(updates.endStation);
     }
 
-    // ✅ REMOVE THIS
-    // if (updates.items) {
-    //   delete updates.items;
-    // }
+    const freight = Number(updates.freight ?? existingBooking.freight ?? 0);
+    const ins_vpp = Number(updates.ins_vpp ?? existingBooking.ins_vpp ?? 0);
+    const biltyCharge = Number(updates.biltyCharge ?? existingBooking.biltyCharge ?? 0);
+
+    const cgstPercent = Number(updates.cgst ?? existingBooking.cgst ?? 0);
+    const sgstPercent = Number(updates.sgst ?? existingBooking.sgst ?? 0);
+    const igstPercent = Number(updates.igst ?? existingBooking.igst ?? 0);
+
+    // GST Freight + INS/VPP par lagega
+    const taxableAmount = freight + ins_vpp;
+
+    // Bill Total
+    const billTotal = taxableAmount + biltyCharge;
+
+    // GST Amount
+    const cgstAmount = (taxableAmount * cgstPercent) / 100;
+    const sgstAmount = (taxableAmount * sgstPercent) / 100;
+    const igstAmount = (taxableAmount * igstPercent) / 100;
+
+    // Grand Total
+    const grandTotal = Math.round(
+      billTotal +
+      cgstAmount +
+      sgstAmount +
+      igstAmount
+    );
+
+    updates.billTotal = billTotal.toFixed(2);
+    updates.grandTotal = grandTotal.toFixed(2);
+    updates.roundOff = (grandTotal - (
+      billTotal +
+      cgstAmount +
+      sgstAmount +
+      igstAmount
+    )).toFixed(2);
+
+    updates.computedTotalRevenue = grandTotal;
 
     const booking = await Booking.findOneAndUpdate(
       { bookingId: id },
-      updates,
-      { new: true }
+      { $set: updates },
+      { new: true, runValidators: true }
     )
-      .populate('startStation endStation')
+      .populate("startStation endStation")
       .lean();
 
-    res.status(200).json(booking);
+    return res.status(200).json(booking);
+
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      message: err.message,
+    });
   }
 };
 
@@ -1228,7 +1281,7 @@ function getEmptyTotals() {
     stateTax: 0,
     cessAmount: 0,
     invoiceAmount: 0,
-    billtyAmount: 20,
+    billtyAmount: 0,
   };
 }
 
@@ -1428,6 +1481,7 @@ export const getCADetailsSummary = async (req, res) => {
           totalCgstPercent: { $sum: "$cgst" },
           totalSgstPercent: { $sum: "$sgst" },
           totalIgstPercent: { $sum: "$igst" },
+          totalBiltyCharge: { $sum: "$biltyCharge" },
           senderNames: { $addToSet: "$senderName" },
           senderGst: { $addToSet: "$senderGgt" },
           customerNames: {
@@ -1450,6 +1504,31 @@ export const getCADetailsSummary = async (req, res) => {
           voucherCount: { $sum: 1 },
           invoiceAmount: { $sum: "$grandTotal" },
           senderNames: { $addToSet: "$senderName" },
+          senderGst: {
+            $first: "$senderGst"
+          },
+
+          customerNames: {
+            $first: "$customerNames"
+          },
+          totalCgstPercent:
+          {
+            $first: "$totalCgstPercent"
+          },
+
+          totalSgstPercent:
+          {
+            $first: "$totalSgstPercent"
+          },
+
+          totalIgstPercent:
+          {
+            $first: "$totalIgstPercent"
+          },
+          totalBiltyCharge:
+          {
+            $first: "$totalBiltyCharge"
+          },
           startStations: { $addToSet: "$startStationName" },
           endStations: { $addToSet: "$endStationName" }
         }
@@ -1470,6 +1549,7 @@ export const getCADetailsSummary = async (req, res) => {
           endStations: 1,
           particulars: { $literal: "Total" },
           gst: { $literal: "" },
+          billtyAmount: "$totalBiltyCharge",
           startStation: { $literal: pickup || "" },
           endStation: { $literal: drop || "" },
           cessAmount: 1
@@ -1480,6 +1560,7 @@ export const getCADetailsSummary = async (req, res) => {
     const result = {
       summary,
       totals: summary[0] || getEmptyTotals(),
+      billtyAmount: summary[0]?.totalBiltyCharge || 0,
       filters: { pickup, drop, fromDate, toDate },
       diagnostics: {
         totalMatchingRecords: anyDeliveries.length,
@@ -1764,7 +1845,10 @@ export const generateInvoiceByCustomer = async (req, res) => {
 
       const gst = (freight + insVpp) * 0.18;
 
-      return freight + insVpp + gst + 20;
+      return freight +
+        insVpp +
+        gst +
+        Number(booking.biltyCharge || 0);
     };
 
     const calculateSubTotal = (booking) => {
@@ -2674,7 +2758,7 @@ export const generateCAReport = async (req, res) => {
             gstAmount +=
               (freight + insVpp) * 0.18;
 
-            biltyAmount += 20;
+            biltyAmount += Number(b.biltyCharge || 0);
           }
         });
 
@@ -2689,6 +2773,30 @@ export const generateCAReport = async (req, res) => {
             ).toFixed(2)
           );
 
+        const firstBooking =
+          inv.bookingIds?.[0];
+
+        const cgstAmount =
+          Math.round(
+            totalAmount *
+            Number(firstBooking?.cgst || 0) / 100
+          );
+
+        const sgstAmount =
+          Math.round(
+            totalAmount *
+            Number(firstBooking?.sgst || 0) / 100
+          );
+
+        const igstAmount =
+          Math.round(
+            totalAmount *
+            Number(firstBooking?.igst || 0) / 100
+          );
+
+        const isToPay =
+          inv.invoiceType === "toPay";
+
         return {
 
           sNo: index + 1,
@@ -2696,34 +2804,32 @@ export const generateCAReport = async (req, res) => {
           invoiceNumber:
             inv.invoiceNumber || "-",
 
-          // ✅ paid => sender
-          // ✅ topay => receiver
-
           billName:
-
-            inv.invoiceType === "toPay"
-
-              ? inv.bookingIds?.[0]
-                ?.receiverName || "-"
-
-              : inv.bookingIds?.[0]
-                ?.senderName || "-",
+            isToPay
+              ? firstBooking?.receiverName || "-"
+              : firstBooking?.senderName || "-",
 
           gstNo:
+            isToPay
+              ? firstBooking?.receiverGgt || "-"
+              : firstBooking?.senderGgt || "-",
 
-            inv.invoiceType === "toPay"
+          address:
+            isToPay
+              ? firstBooking?.receiverLocality || "-"
+              : firstBooking?.senderLocality || "-",
 
-              ? inv.bookingIds?.[0]
-                ?.receiverGgt || "-"
+          igstAmount,
 
-              : inv.bookingIds?.[0]
-                ?.senderGgt || "-",
+          cgstAmount,
+
+          sgstAmount,
 
           totalAmount,
 
           biltyAmount,
 
-          gstAmount: Math.round(gstAmount),
+          gstAmount,
 
           grandTotal,
 
@@ -2804,7 +2910,7 @@ export const generateCAReport = async (req, res) => {
       0,
       0,
       210,
-      50,
+      55,
       "F"
     );
 
@@ -2879,29 +2985,71 @@ export const generateCAReport = async (req, res) => {
     doc.text(
       `Period : ${moment(fromDate).format("DD-MM-YYYY")} To ${moment(toDate).format("DD-MM-YYYY")}`,
       105,
-      65,
+      70,
       { align: "center" }
     );
 
     doc.text(
       `Months : ${monthText}`,
       105,
-      74,
+      75,
+      { align: "center" }
+    );
+    doc.setFontSize(11);
+
+    doc.setFont("helvetica", "bold");
+
+    doc.text(
+      "SAC Code : 9968",
+      105,
+      80,
       { align: "center" }
     );
 
+    doc.setFont("helvetica", "normal");
+
     autoTable(doc, {
-      startY: 85,
+      startY: 90,
+
+      styles: {
+        fontSize: 7.5,
+        cellPadding: 2.5,
+        overflow: "linebreak",
+        valign: "middle"
+      },
+
+      headStyles: {
+        fillColor: [15, 82, 186],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 22 }, // Invoice Date
+        3: { cellWidth: 40 }, // Bill Name
+        4: { cellWidth: 28 }, // GST
+        5: { cellWidth: 14 },
+        6: { cellWidth: 11 },
+        7: { cellWidth: 11 },
+        8: { cellWidth: 11 },
+        9: { cellWidth: 11 },
+        10: { cellWidth: 18 }
+      },
 
       head: [[
-        "S.No",
+        "S No",
         "Invoice No",
         "Invoice Date",
         "Bill Name",
         "GST No",
         "Amount",
+        "CGST 9%",
+        "SGST 9%",
+        "IGST 18%",
         "Bilty",
-        "GST",
         "Grand Total"
       ]],
 
@@ -2912,8 +3060,10 @@ export const generateCAReport = async (req, res) => {
         row.billName,
         row.gstNo,
         row.totalAmount,
+        row.cgstAmount,
+        row.sgstAmount,
+        row.igstAmount,
         row.biltyAmount,
-        row.gstAmount,
         row.grandTotal
       ])
     });
@@ -2925,10 +3075,24 @@ export const generateCAReport = async (req, res) => {
         0
       );
 
-    const totalGSTSum =
+    const totalCGSTSum =
       reportData.reduce(
         (sum, row) =>
-          sum + Number(row.gstAmount || 0),
+          sum + Number(row.cgstAmount || 0),
+        0
+      );
+
+    const totalSGSTSum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.sgstAmount || 0),
+        0
+      );
+
+    const totalIGSTSum =
+      reportData.reduce(
+        (sum, row) =>
+          sum + Number(row.igstAmount || 0),
         0
       );
 
@@ -2949,8 +3113,13 @@ export const generateCAReport = async (req, res) => {
     let finalY =
       doc.lastAutoTable.finalY + 15;
 
-    if (finalY > 220) {
+    // Summary section ki approx height
+    const summaryHeight = 120;
+
+    if (finalY + summaryHeight > 280) {
+
       doc.addPage();
+
       finalY = 20;
     }
     doc.setFillColor(40, 120, 220);
@@ -2978,67 +3147,50 @@ export const generateCAReport = async (req, res) => {
 
     doc.setTextColor(0, 0, 0);
 
-    doc.setFontSize(12);
+    const summaryStartY = finalY + 25;
 
-    doc.text(
-      "Invoices",
-      118,
-      finalY + 25
-    );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
 
-    doc.text(
-      String(reportData.length),
-      185,
-      finalY + 25,
-      { align: "right" }
-    );
+    const summaryRows = [
+      ["Invoices", reportData.length],
+      ["Amount", `Rs. ${Math.round(totalAmountSum).toLocaleString("en-IN")}`],
+      ["CGST 9%", `Rs. ${Math.round(totalCGSTSum).toLocaleString("en-IN")}`],
+      ["SGST 9%", `Rs. ${Math.round(totalSGSTSum).toLocaleString("en-IN")}`],
+      ["IGST 18%", `Rs. ${Math.round(totalIGSTSum).toLocaleString("en-IN")}`],
+      ["Bilty", `Rs. ${Math.round(totalBiltySum).toLocaleString("en-IN")}`]
+    ];
 
-    doc.text(
-      "Amount",
-      118,
-      finalY + 40
-    );
+    summaryRows.forEach((row, index) => {
 
-    doc.text(
-      `Rs. ${Math.round(totalAmountSum).toLocaleString("en-IN")}`,
-      185,
-      finalY + 40,
-      { align: "right" }
-    );
+      const y = summaryStartY + (index * 12);
 
-    doc.text(
-      "GST",
-      118,
-      finalY + 55
-    );
+      doc.text(
+        row[0],
+        118,
+        y
+      );
 
-    doc.text(
-      `Rs. ${Math.round(totalGSTSum).toLocaleString("en-IN")}`,
-      185,
-      finalY + 55,
-      { align: "right" }
-    );
-
-    doc.text(
-      "Bilty",
-      118,
-      finalY + 70
-    );
-
-    doc.text(
-      `Rs. ${Math.round(totalBiltySum).toLocaleString("en-IN")}`,
-      185,
-      finalY + 70,
-      { align: "right" }
-    );
+      doc.text(
+        String(row[1]),
+        185,
+        y,
+        { align: "right" }
+      );
+    });
 
     doc.setDrawColor(180);
 
     doc.line(
       118,
-      finalY + 78,
+      summaryStartY + 76,
       185,
-      finalY + 78
+      summaryStartY + 76
+    );
+
+    doc.setFont(
+      "helvetica",
+      "bold"
     );
 
     doc.setTextColor(0, 128, 0);
@@ -3048,15 +3200,283 @@ export const generateCAReport = async (req, res) => {
     doc.text(
       "Grand Total",
       118,
-      finalY + 90
+      summaryStartY + 92
     );
 
     doc.text(
       `Rs. ${Math.round(grandTotalSum).toLocaleString("en-IN")}`,
       185,
-      finalY + 90,
+      summaryStartY + 92,
       { align: "right" }
     );
+
+    // =========================
+    // EXCEL GENERATE
+    // =========================
+    const workbook =
+      new ExcelJS.Workbook();
+
+    const worksheet =
+      workbook.addWorksheet(
+        "CA Report"
+      );
+
+    // =========================
+    // HEADER
+    // =========================
+
+    worksheet.mergeCells("A1:K1");
+
+    worksheet.getCell("A1").value =
+      "BHARAT PARCEL SERVICES PVT. LTD.";
+
+    worksheet.getCell("A1").font = {
+      bold: true,
+      size: 18,
+      color: {
+        argb: "FFFFFF"
+      }
+    };
+
+    worksheet.getCell("A1").fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0F52BA"
+      }
+    };
+
+    worksheet.getCell("A1").alignment = {
+      horizontal: "center"
+    };
+
+    worksheet.mergeCells("A2:K2");
+
+    worksheet.getCell("A2").value =
+      stationAddress;
+
+    worksheet.getCell("A2").alignment = {
+      horizontal: "center"
+    };
+
+    worksheet.mergeCells("A3:K3");
+
+    worksheet.getCell("A3").value =
+      `GSTIN : ${stationGST}`;
+
+    worksheet.getCell("A3").font = {
+      bold: true
+    };
+
+    worksheet.getCell("A3").alignment = {
+      horizontal: "center"
+    };
+
+    worksheet.mergeCells("A5:K5");
+
+    worksheet.getCell("A5").value =
+      "CA REPORT";
+
+    worksheet.getCell("A5").font = {
+      bold: true,
+      size: 14
+    };
+
+    worksheet.getCell("A5").alignment = {
+      horizontal: "center"
+    };
+
+    worksheet.getCell("A7").value =
+      `Period : ${moment(fromDate).format("DD-MM-YYYY")} To ${moment(toDate).format("DD-MM-YYYY")}`;
+
+    worksheet.getCell("A8").value =
+      `Months : ${monthText}`;
+
+    worksheet.getCell("A9").value =
+      "SAC Code : 9968";
+
+    worksheet.getCell("A9").font = {
+      bold: true
+    };
+
+    worksheet.getRow(11).values = [
+      "S No",
+      "Invoice No",
+      "Invoice Date",
+      "Bill Name",
+      "GST No",
+      "Amount",
+      "CGST 9%",
+      "SGST 9%",
+      "IGST 18%",
+      "Bilty",
+      "Grand Total"
+    ];
+
+    worksheet.getRow(10).font = {
+      bold: true,
+      color: { argb: "FFFFFF" }
+    };
+
+    worksheet.getRow(10).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "0F52BA" }
+    };
+
+    let currentRow = 12;
+
+    reportData.forEach(row => {
+
+      worksheet.getRow(currentRow).values = [
+        row.sNo,
+        row.invoiceNumber,
+        row.invoiceDate,
+        row.billName,
+        row.gstNo,
+        row.totalAmount,
+        row.cgstAmount,
+        row.sgstAmount,
+        row.igstAmount,
+        row.biltyAmount,
+        row.grandTotal
+      ];
+
+      currentRow++;
+
+    });
+
+    worksheet.addRow([]);
+
+    worksheet.addRow([]);
+
+    let summaryRow = currentRow + 2;
+
+    worksheet.getCell(
+      `A${summaryRow}`
+    ).value = "REPORT SUMMARY";
+
+    worksheet.getCell(
+      `A${summaryRow}`
+    ).font = {
+      bold: true,
+      size: 14
+    };
+
+    summaryRow += 2;
+
+    worksheet.getRow(summaryRow).values = [
+      "Invoices",
+      reportData.length
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "Amount",
+      totalAmountSum
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "CGST 9%",
+      totalCGSTSum
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "SGST 9%",
+      totalSGSTSum
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "IGST 18%",
+      totalIGSTSum
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "Bilty",
+      totalBiltySum
+    ];
+
+    summaryRow++;
+
+    worksheet.getRow(summaryRow).values = [
+      "Grand Total",
+      grandTotalSum
+    ];
+
+    worksheet.getRow(summaryRow).font = {
+      bold: true
+    };
+
+    const headerRow =
+      worksheet.getRow(11);
+
+    headerRow.font = {
+      bold: true,
+      color: {
+        argb: "FFFFFF"
+      }
+    };
+
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0F52BA"
+      }
+    };
+
+    headerRow.alignment = {
+      horizontal: "center"
+    };
+
+    worksheet.getColumn(1).width = 10;
+    worksheet.getColumn(2).width = 25;
+    worksheet.getColumn(3).width = 18;
+    worksheet.getColumn(4).width = 40;
+    worksheet.getColumn(5).width = 25;
+    worksheet.getColumn(6).width = 15;
+    worksheet.getColumn(7).width = 15;
+    worksheet.getColumn(8).width = 15;
+    worksheet.getColumn(9).width = 15;
+    worksheet.getColumn(10).width = 15;
+    worksheet.getColumn(11).width = 20;
+
+    const excelFileName =
+      `${reportNumber}.xlsx`;
+
+    const excelDir = path.join(
+      process.cwd(),
+      "public",
+      "ca-reports"
+    );
+
+    if (!fs.existsSync(excelDir)) {
+      fs.mkdirSync(excelDir, {
+        recursive: true
+      });
+    }
+
+    const excelFullPath =
+      path.join(
+        excelDir,
+        excelFileName
+      );
+
+    await workbook.xlsx.writeFile(
+      excelFullPath
+    );
+
+    const excelPath =
+      `/ca-reports/${excelFileName}`;
 
     const pdfDir = path.join(
       process.cwd(),
@@ -3108,9 +3528,12 @@ export const generateCAReport = async (req, res) => {
 
       months:
         monthText,
+      sacCode: "9968",
 
       fileName: pdfFileName,
-      pdfPath: pdfPath
+      pdfPath: pdfPath,
+      excelFileName,
+      excelPath
     });
 
     // =========================
@@ -3122,8 +3545,11 @@ export const generateCAReport = async (req, res) => {
       reportNumber,
       months: monthText,
       pdfPath,
+      excelPath,
       count: reportData.length,
-      data: reportData
+      data: reportData,
+      stationAddress,
+      stationGST
     });
 
   } catch (err) {

@@ -30,8 +30,7 @@ const ViewBooking = () => {
     }
   }, [bookingId])
 
-  // Bilty Amount fixed 20 रुपये
-  const biltyAmount = 20;
+  const biltyAmount = Number(booking?.biltyCharge || 0);
 
   if (!booking || Object.keys(booking).length === 0) {
     return (
@@ -393,7 +392,7 @@ const ViewBooking = () => {
               <Grid size={{ xs: 6 }}>
                 <TextField
                   label="BILTY AMOUNT"
-                  value={biltyAmount}
+                  value={booking?.biltyCharge || 0}
                   InputProps={{ readOnly: true }}
                   fullWidth
                   size="small"

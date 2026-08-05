@@ -434,7 +434,7 @@ const ViewBookingByDate = () => {
                 (b.sgst || 0) +
                 (b.igst || 0);
 
-            const bilty = 20;
+            const bilty = Number(b.biltyCharge || 0);
 
             return [
                 index + 1,
@@ -629,7 +629,7 @@ const ViewBookingByDate = () => {
                 (b.sgst || 0) +
                 (b.igst || 0);
 
-            const bilty = 20;
+            const bilty = Number(b.biltyCharge || 0);
 
             return {
                 "S.No": index + 1,
@@ -980,7 +980,7 @@ const ViewBookingByDate = () => {
                                                 Number(booking.ins_vpp) ||
                                                 0;
 
-                                            const bilty = 20;
+                                            const bilty = Number(booking.biltyCharge || 0);
 
                                             const gst =
                                                 (booking.cgst || 0) +

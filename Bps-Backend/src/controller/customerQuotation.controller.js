@@ -32,7 +32,7 @@ const formatQuotations = (quotations) => {
     "quotationPdf": q.quotationPdf || null,
     "orderBy": q.createdByRole === "admin"
       ? "Admin"
-      : `Supervisor ${q.startStation?.stationName || ''}`,
+      : `Supervisor ${q.startStationName || ''}`,
     "Date": formatDateOnly(q.quotationDate),
     "Name": q.fromCustomerName
       || (q.customerId
@@ -42,6 +42,7 @@ const formatQuotations = (quotations) => {
     "Name (Drop)": q.toCustomerName || "",
     "drop": q.endStation || "",
     "Contact": q.mobile || "",
+    "Bilty Charge": q.biltyCharge || 0,
     "cancelReason": q.cancelReason || "-",
     "Action": [
       { name: "View", icon: "view-icon", action: `/api/quotations/${q._id}` },
@@ -132,7 +133,7 @@ export const createQuotation = asyncHandler(async (req, res, next) => {
     productDetails,
     locality,
     grandTotal,
-    freight,
+    biltyCharge,
     insVppAmount,
     contactNumber,
     email
@@ -249,7 +250,7 @@ export const createQuotation = asyncHandler(async (req, res, next) => {
     sTax: Number(sTax) || 0,
     sgst: Number(sgst) || 0,
     amount: Number(amount) || 0,
-    freight: Number(freight) || 0,
+    biltyCharge: Number(biltyCharge) || 0,
     insVppAmount: Number(insVppAmount) || 0,
     createdByUser: user._id,
     createdByRole: user.role,
@@ -271,6 +272,7 @@ export const createQuotation = asyncHandler(async (req, res, next) => {
     proposedDeliveryDate: formatDateOnly(quotation.proposedDeliveryDate),
     totalInsurance: quotation.totalInsurance, // Include total insurance in response
     computedTotalRevenue: quotation.computedTotalRevenue, // Include computed total
+    biltyCharge: quotation.biltyCharge,
     insVppAmount: quotation.insVppAmount
   };
 
@@ -313,9 +315,7 @@ export const getBookingSummaryByDate = async (req, res) => {
     bookings.forEach((booking) => {
 
       const revenue =
-        Number(booking.amount || 0) +
-        Number(booking.freight || 0) +
-        Number(booking.insVppAmount || 0);
+        Number(booking.grandTotal || 0);
 
       const isPaid =
         booking.productDetails?.every(
@@ -346,12 +346,19 @@ export const getBookingSummaryByDate = async (req, res) => {
 
         ...booking.toObject(),
 
+        biltyCharge: booking.biltyCharge || 0,
         paid: booking.paidAmount || 0,
 
         toPayReceived: topayReceived,
 
         dueBalance:
-          booking.deliveryPendingAmount || 0,
+          booking.paymentStatus === "Paid"
+            ? 0
+            : Number(
+              booking.deliveryPendingAmount ||
+              booking.grandTotal ||
+              0
+            ),
 
         paymentStatus:
           booking.paymentStatus,
@@ -407,13 +414,13 @@ export const getQuotationById = asyncHandler(async (req, res, next) => {
     ...quotation.toObject(),
     toContactNumber: quotation.toContactNumber || quotation.mobile,
     insVppAmount: quotation.insVppAmount,
+    biltyCharge: quotation.biltyCharge,
     productTotal: quotation.productTotal,
     computedTotalRevenue: quotation.computedTotalRevenue
   };
 
   res.status(200).json(new ApiResponse(200, quotationWithVirtuals));
 });
-
 
 // Update Quotation Controller
 export const updateQuotation = asyncHandler(async (req, res, next) => {
@@ -424,10 +431,36 @@ export const updateQuotation = asyncHandler(async (req, res, next) => {
     productDetails = [],
     sTax = 0,
     sgst = 0,
-    freight = 0,
+    biltyCharge = 0,
   } = req.body;
 
-  let calculatedGrandTotal;
+  // ✅ Start Station Change Fix
+
+  if (req.body.startStationName) {
+
+    const station =
+      await manageStation.findOne({
+        stationName: req.body.startStationName
+      });
+
+    if (!station) {
+      return next(
+        new ApiError(
+          404,
+          "Start Station not found"
+        )
+      );
+    }
+
+    req.body.startStation = station._id;
+    req.body.startStationName = station.stationName;
+  }
+
+  let calculatedGrandTotal = 0;
+  let productValueTotal = 0;
+  let insuranceTotal = 0;
+  let vppTotal = 0;
+  let insVppTotal = 0;
 
   // ✅ If productDetails updated → recalc totals
   if (Array.isArray(productDetails) && productDetails.length > 0) {
@@ -445,20 +478,30 @@ export const updateQuotation = asyncHandler(async (req, res, next) => {
     }
 
     // Base product total
-    const productValueTotal = productDetails.reduce(
+    productValueTotal = productDetails.reduce(
       (acc, item) => acc + Number(item.price || 0),
       0
     );
 
+    insVppTotal =
+      Number(req.body.insVppAmount || 0);
+
     // Tax only on product price
-    const sTaxAmount = (productValueTotal * Number(sTax)) / 100;
-    const sgstAmount = (productValueTotal * Number(sgst)) / 100;
+    const taxableAmount =
+      productValueTotal;
+
+    const sTaxAmount =
+      (taxableAmount * Number(sTax || 0)) / 100;
+
+    const sgstAmount =
+      (taxableAmount * Number(sgst || 0)) / 100;
 
     calculatedGrandTotal =
       productValueTotal +
+      insVppTotal +
+      Number(biltyCharge || 0) +
       sTaxAmount +
-      sgstAmount +
-      Number(freight || 0);
+      sgstAmount;
   }
 
   // ✅ Merge calculatedGrandTotal safely
@@ -466,9 +509,22 @@ export const updateQuotation = asyncHandler(async (req, res, next) => {
     { bookingId },
     {
       ...req.body,
-      ...(calculatedGrandTotal !== undefined && {
-        grandTotal: calculatedGrandTotal,
-      }),
+
+      amount: productValueTotal, // only parcel value
+
+      biltyCharge: Number(biltyCharge || 0),
+
+      insVppAmount: insVppTotal,
+
+      grandTotal: calculatedGrandTotal,
+
+      deliveryPendingAmount:
+        calculatedGrandTotal,
+
+      paidAmount:
+        req.body.paymentStatus === "Paid"
+          ? calculatedGrandTotal
+          : 0
     },
     { new: true }
   );
@@ -481,7 +537,6 @@ export const updateQuotation = asyncHandler(async (req, res, next) => {
     .status(200)
     .json(new ApiResponse(200, updatedQuotation, "Quotation updated successfully"));
 });
-
 
 // Delete Quotation Controller
 export const deleteQuotation = asyncHandler(async (req, res, next) => {
@@ -621,6 +676,7 @@ export const searchQuotationByBookingId = asyncHandler(async (req, res, next) =>
     ...quotation,
     toContactNumber: quotation.toContactNumber || quotation.mobile,
     totalInsurance,
+    biltyCharge: quotation.biltyCharge,
     productTotal: quotation.productTotal,
     computedTotalRevenue: quotation.computedTotalRevenue
   }));

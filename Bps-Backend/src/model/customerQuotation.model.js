@@ -118,7 +118,7 @@ const quotationSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  freight: {
+  biltyCharge: {
     type: Number,
     default: 0
   },
@@ -245,10 +245,10 @@ quotationSchema.virtual("totalTax").get(function () {
 // Virtual for computed total revenue
 quotationSchema.virtual("computedTotalRevenue").get(function () {
   return (
-    this.productTotal +        // base price
-    this.totalTax +            // GST
-    (this.freight || 0) +      // bilty
-    (this.insVppAmount || 0)   // ✅ INS/VPP
+    this.productTotal +
+    this.totalTax +
+    (this.biltyCharge || 0) +
+    (this.insVppAmount || 0)
   );
 });
 

@@ -321,7 +321,8 @@ export const generateInvoicePDF = async (data) => {
             let insVpp = 0;
             let freight = 0;
             let gstAmount = 0;
-            let biltyCharge = 20;
+            let biltyCharge =
+                Number(b.biltyCharge || 0);
             let total = 0;
 
             const isPaidInsurance =
@@ -497,7 +498,10 @@ export const generateInvoicePDF = async (data) => {
                     String(item.toPay).toLowerCase().trim() === "paid" &&
                     Number(item.insuranceAmount || 0) > 0;
 
-                return sum + (isPaidInsurance ? 0 : 20);
+                return sum +
+                    (isPaidInsurance
+                        ? 0
+                        : Number(b.biltyCharge || 0));
 
             }, 0);
         const gross =

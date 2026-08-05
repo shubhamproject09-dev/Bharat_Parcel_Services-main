@@ -10,6 +10,8 @@ import {
   InputAdornment,
   Snackbar,
   Alert,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { ArrowBack } from '@mui/icons-material';
 import { LocalizationProvider } from "@mui/x-date-pickers";
@@ -71,7 +73,8 @@ const initialValues = {
   ],
 
   addComment: "",
-  biltyAmount: "20",
+  biltyCharge: 20,
+  isBiltyCharge: true,
   billTotal: "",
   insVppAmount: "",
   sTax: "",
@@ -192,10 +195,14 @@ const QuotationForm = () => {
               sum + item.vppAmount, 0
             );
 
-            const biltyAmount = 20;
+            const biltyCharge = Number(values.biltyCharge || 0);
 
             // Bill Total = Product Value + Insurance + VPP + Bilty
-            const billTotal = totalProductValue + totalInsurance + totalVppAmount + biltyAmount;
+            const billTotal =
+              totalProductValue +
+              totalInsurance +
+              totalVppAmount +
+              biltyCharge;
 
             // Tax calculation on product value only (not on insurance or VPP)
             const taxAmount = totalProductValue * ((parseFloat(values.sTax) || 0) / 100);
@@ -204,7 +211,9 @@ const QuotationForm = () => {
             const payload = {
               ...values,
               productDetails: formattedProductDetails,
-              freight: biltyAmount,
+
+              biltyCharge,
+
               sTax: parseFloat(values.sTax) || 0,
               quotationDate: toLocalDateString(values.quotationDate),
               proposedDeliveryDate: toLocalDateString(values.proposedDeliveryDate),
@@ -846,20 +855,6 @@ const QuotationForm = () => {
                       />
                     </Grid>
 
-                    {/* Bilty Amount */}
-                    <Grid size={{ xs: 12, md: 2 }}>
-                      <TextField
-                        name="biltyAmount"
-                        label="Bilty Amount"
-                        value="20"
-                        InputProps={{
-                          readOnly: true,
-                          startAdornment: <InputAdornment position="start">₹</InputAdornment>,
-                        }}
-                        fullWidth
-                      />
-                    </Grid>
-
                     {/* Bill Total (Product Value + Insurance + VPP + Bilty) */}
                     <Grid size={{ xs: 12, md: 2 }}>
                       <TextField
@@ -899,6 +894,38 @@ const QuotationForm = () => {
                         }}
                         fullWidth
                       />
+                    </Grid>
+
+                    {/* Bilty Amount */}
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={values.isBiltyCharge}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+
+                                setFieldValue("isBiltyCharge", checked);
+                                setFieldValue("biltyCharge", checked ? 20 : 0);
+                              }}
+                            />
+                          }
+                          label="Bilty Charge"
+                        />
+
+                        <TextField
+                          fullWidth
+                          label="Bilty Amount"
+                          value={values.biltyCharge}
+                          InputProps={{
+                            readOnly: true,
+                            startAdornment: (
+                              <InputAdornment position="start">₹</InputAdornment>
+                            ),
+                          }}
+                        />
+                      </Box>
                     </Grid>
 
                     <Grid size={{ xs: 12, md: 2 }}>
@@ -1039,7 +1066,7 @@ const EffectSyncCities = ({ values, dispatch, setSenderCities, setReceiverCities
 
 const EffectSyncTotal = ({ values, setFieldValue }) => {
   useEffect(() => {
-    const biltyAmount = 20;
+    const biltyCharge = Number(values.biltyCharge || 0);
 
     // ✅ 1. Base price (sirf product price)
     const basePrice = values.productDetails.reduce(
@@ -1057,7 +1084,7 @@ const EffectSyncTotal = ({ values, setFieldValue }) => {
     const rawTotal =
       basePrice +
       gstAmount +
-      biltyAmount +
+      biltyCharge +
       insVppAmount;
 
     // 🔥 custom rounding logic
@@ -1075,8 +1102,11 @@ const EffectSyncTotal = ({ values, setFieldValue }) => {
 
     // ✅ set values
     setFieldValue("amount", basePrice.toFixed(2));
-    setFieldValue("biltyAmount", biltyAmount.toFixed(2));
-    setFieldValue("billTotal", basePrice.toFixed(2));
+    setFieldValue("biltyCharge", biltyCharge.toFixed(2));
+    setFieldValue(
+      "billTotal",
+      (basePrice + biltyCharge + insVppAmount).toFixed(2)
+    );
     setFieldValue("roundOff", roundOff.toFixed(2));
     setFieldValue("grandTotal", rawTotal.toFixed(2));
     setFieldValue("finalTotal", roundedTotal.toFixed(2));
@@ -1085,7 +1115,8 @@ const EffectSyncTotal = ({ values, setFieldValue }) => {
     values.productDetails,
     values.insVppAmount,
     values.sTax,
-    setFieldValue,
+    values.biltyCharge,
+    setFieldValue
   ]);
 };
 

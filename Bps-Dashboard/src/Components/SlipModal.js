@@ -7,7 +7,7 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import PrintIcon from '@mui/icons-material/Print';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import CompanyLogo from '../assets/logo2.png';
+import CompanyLogo from '../assets/tlogo.png';
 import companySignature from '../assets/BpsSignature.png';
 import moment from "moment-timezone";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
@@ -143,95 +143,158 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                 </Box>
             )}
             {/* Company Header with Colors */}
-            <Grid container alignItems="center" justifyContent="space-between" sx={{
-                mb: 1.5,
-                pb: 1,
-                borderBottom: '2px solid #1a237e'
-            }}>
-                <Box sx={{ width: '50px' }}>
+            <Grid
+                container
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{
+                    mb: 0.5,
+                    pb: 0.5,
+                    borderBottom: '2px solid #1a237e',
+                    minHeight: '70px',
+                }}
+            >
+                {/* Logo */}
+                <Box
+                    sx={{
+                        width: '70px',
+                        height: '55px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                    }}
+                >
                     <img
                         src={CompanyLogo}
                         alt="Bharat Parcel Logo"
                         style={{
-                            width: '50px',
-                            height: '50px',
-                            objectFit: 'contain'
+                            width: '100px',
+                            height: '100px',
+                            objectFit: 'contain',
+                            display: 'block',
                         }}
                     />
                 </Box>
-                <Box textAlign="center" flex={1}>
-                    <Typography variant="h6" sx={{
-                        fontSize: '16px',
-                        lineHeight: 1.2,
-                        fontWeight: 'bold',
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#1a237e',
-                        textShadow: '1px 1px 2px rgba(0,0,0,0.1)'
-                    }}>
+
+                {/* Company Information */}
+                <Box
+                    textAlign="center"
+                    sx={{
+                        flex: 1,
+                        py: 0,
+                    }}
+                >
+                    <Typography
+                        variant="h6"
+                        sx={{
+                            fontSize: '16px',
+                            lineHeight: 1.1,
+                            fontWeight: 'bold',
+                            fontFamily: 'Arial, sans-serif',
+                            color: '#1a237e',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.1)',
+                            m: 0,
+                        }}
+                    >
                         BHARAT PARCEL SERVICES PVT. LTD.
                     </Typography>
-                    <Typography sx={{
-                        fontSize: '10px',
-                        lineHeight: 1.2,
-                        mt: 0.5,
-                        fontFamily: 'Arial, sans-serif',
-                        color: '#d32f2f',
-                        fontWeight: 'bold'
-                    }}>
+
+                    <Typography
+                        sx={{
+                            fontSize: '10px',
+                            lineHeight: 1.1,
+                            mt: 0.3,
+                            fontFamily: 'Arial, sans-serif',
+                            color: '#d32f2f',
+                            fontWeight: 'bold',
+                            m: 0,
+                        }}
+                    >
                         SUBJECT TO {bookingData?.startStation?.stationName} JURISDICTION
                     </Typography>
-                    <Box sx={{
-                        display: "flex",
-                        justifyContent: "center",
-                        gap: 2,
-                        mt: 0.5
-                    }}>
-                        <Typography sx={{
-                            fontSize: '9px',
-                            fontWeight: "bold",
-                            color: '#1a237e'
-                        }}>
+
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: 2,
+                            mt: 0.3,
+                        }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: '9px',
+                                fontWeight: 'bold',
+                                color: '#1a237e',
+                                lineHeight: 1,
+                                m: 0,
+                            }}
+                        >
                             GSTIN : {bookingData?.startStation?.gst}
                         </Typography>
 
-                        <Typography sx={{
-                            fontSize: '9px',
-                            fontWeight: "bold",
-                            color: '#1a237e'
-                        }}>
+                        <Typography
+                            sx={{
+                                fontSize: '9px',
+                                fontWeight: 'bold',
+                                color: '#1a237e',
+                                lineHeight: 1,
+                                m: 0,
+                            }}
+                        >
                             PAN : AAECB6506F
                         </Typography>
                     </Box>
                 </Box>
-                <Box textAlign="right" sx={{
-                    backgroundColor: '#f5f5f5',
-                    p: 0.5,
-                    borderRadius: '4px',
-                    border: '1px solid #ddd'
-                }}>
-                    <Typography sx={{
-                        fontSize: '11px',
-                        fontWeight: '900',
-                        letterSpacing: '1px'
-                    }}>
+
+                {/* Bilty Information */}
+                <Box
+                    textAlign="right"
+                    sx={{
+                        minWidth: '130px',
+                        backgroundColor: '#f5f5f5',
+                        px: 0.7,
+                        py: 0.4,
+                        borderRadius: '4px',
+                        border: '1px solid #ddd',
+                    }}
+                >
+                    <Typography
+                        sx={{
+                            fontSize: '11px',
+                            fontWeight: '900',
+                            letterSpacing: '0.7px',
+                            lineHeight: 1.1,
+                            m: 0,
+                        }}
+                    >
                         BILTY NO: {bookingData?.items?.[0]?.receiptNo || "-"}
                     </Typography>
-                    <Typography sx={{
-                        fontSize: '11px',
-                        fontWeight: '900',
-                        fontFamily: 'Arial, sans-serif',
-                        mt: 0.5,
-                        letterSpacing: '1px'
-                    }}>
+
+                    <Typography
+                        sx={{
+                            fontSize: '11px',
+                            fontWeight: '900',
+                            fontFamily: 'Arial, sans-serif',
+                            mt: 0.3,
+                            letterSpacing: '0.7px',
+                            lineHeight: 1.1,
+                            m: 0,
+                        }}
+                    >
                         PAYMENT: {bookingData?.items?.[0]?.toPay?.toUpperCase()}
                     </Typography>
+
                     {bookingData?.cancelReason && (
                         <Typography
                             sx={{
-                                fontSize: "11px",
-                                fontWeight: "bold",
-                                color: "red",
-                                mt: 0.5,
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                color: 'red',
+                                mt: 0.3,
+                                lineHeight: 1.1,
+                                m: 0,
                             }}
                         >
                             CANCELLED
@@ -1077,7 +1140,7 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                             box-sizing: border-box !important;
                             border: 2px solid #000 !important;
                             padding: 3mm !important;
-                            padding-bottom: 8mm !important;
+                            padding-bottom: 5mm !important;
                             min-height: 145mm !important; 
                              height: auto !important;
                             overflow: hidden !important;
@@ -1090,19 +1153,19 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
                         
                         /* Company Header */
                         .company-header {
-                            display: flex !important;
-                            align-items: center !important;
-                            justify-content: space-between !important;
-                            margin-bottom: 2mm !important;
-                            padding-bottom: 1mm !important;
-                            border-bottom: 2px solid #1a237e !important;
-                            font-weight: bold !important;
-                             color: #000 !important;
-                        }
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 1mm !important;
+    padding-bottom: 0mm !important;
+    border-bottom: 2px solid #1a237e !important;
+    font-weight: bold !important;
+    color: #000 !important;
+}
                         
                         .logo-img {
-                            width: 15mm !important;
-                            height: 15mm !important;
+                            width: 22mm !important;
+                            height: 22mm !important;
                             object-fit: contain !important;
                         }
                         
@@ -1552,7 +1615,7 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
     gap: 20px;
     font-size: 9px;
     font-weight: bold;
-    margin-top: 2px;
+    margin-top: 0px;
 ">
     <div>GSTIN : ${bookingData?.startStation?.gst}</div>
     <div>PAN : AAECB6506F</div>
@@ -1845,7 +1908,7 @@ const SlipModal = ({ open, handleClose, bookingData }) => {
     gap: 20px;
     font-size: 9px;
     font-weight: bold;
-    margin-top: 2px;
+    margin-top: 0px;
 ">
     <div>GSTIN : ${bookingData?.startStation?.gst}</div>
     <div>PAN : AAECB6506F</div>

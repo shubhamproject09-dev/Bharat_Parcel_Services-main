@@ -35,7 +35,7 @@ const router = express.Router();
 router.post("/", verifyJwt, createQuotation);
 
 // Route to get all quotations
-router.get("/", getAllQuotations);
+router.get("/", verifyJwt, getAllQuotations);
 
 // Route to get total booking requests
 router.get("/total-booking-requests", verifyJwt, getTotalBookingRequests);

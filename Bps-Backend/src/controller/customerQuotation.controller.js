@@ -391,14 +391,82 @@ export const getBookingSummaryByDate = async (req, res) => {
 
 // Get All Quotations Controller
 export const getAllQuotations = asyncHandler(async (req, res) => {
-  const quotations = await Quotation.find({ isDeleted: false })
-    .populate("startStation", "stationName")
-    .populate("customerId", "firstName lastName");
-  console.log(quotations)
+  const user = req.user;
+
+  // =========================
+  // PAGINATION
+  // =========================
+  const page = Math.max(Number(req.query.page) || 1, 1);
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const skip = (page - 1) * limit;
+
+  // =========================
+  // SAME FILTER AS BOOKING REQUEST COUNT
+  // =========================
+  const filter = getBookingFilterByType("request", user);
+
+  // =========================
+  // SEARCH
+  // =========================
+  const search = req.query.search?.trim();
+
+  if (search) {
+    const searchRegex = { $regex: search, $options: "i" };
+
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { bookingId: searchRegex },
+          { fromCustomerName: searchRegex },
+          { toCustomerName: searchRegex },
+          { mobile: searchRegex },
+          { toContactNumber: searchRegex },
+          { startStationName: searchRegex },
+          { endStation: searchRegex },
+          { "productDetails.receiptNo": searchRegex }, // IMPORTANT
+          { "productDetails.refNo": searchRegex }
+        ]
+      }
+    ];
+  }
+
+  // =========================
+  // FETCH + COUNT
+  // =========================
+  const [quotations, total] = await Promise.all([
+    Quotation.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("startStation", "stationName")
+      .populate("customerId", "firstName lastName")
+      .lean(),
+
+    Quotation.countDocuments(filter)
+  ]);
+
+  // =========================
+  // FORMAT
+  // =========================
   const formatted = formatQuotations(quotations);
 
-
-  res.status(200).json(new ApiResponse(200, formatted));
+  // =========================
+  // RESPONSE
+  // =========================
+  res.status(200).json(
+    new ApiResponse(200, {
+      data: formatted,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    })
+  );
 });
 
 // Get Quotation by ID Controller

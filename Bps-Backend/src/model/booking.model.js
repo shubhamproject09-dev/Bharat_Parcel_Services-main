@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from "crypto";
 import { User } from "../model/user.model.js";
 import { generateAndCommitBookingReceiptNo } from "../utils/generateReceiptNo.js";
 
@@ -335,13 +336,51 @@ const BookingSchema = new mongoose.Schema(
 
 BookingSchema.index({ deletedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
+// Booking number counter - same file
+const BookingCounterSchema = new mongoose.Schema({
+  key: {
+    type: String,
+    unique: true,
+  },
+  sequence: {
+    type: Number,
+    default: 0,
+  },
+});
+
+const BookingCounter =
+  mongoose.models.BookingCounter ||
+  mongoose.model("BookingCounter", BookingCounterSchema);
+
 // Auto-generate booking ID
-BookingSchema.pre('validate', function (next) {
-  if (!this.bookingId) {
-    const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    this.bookingId = `BHPAR${randomDigits}BOOK`;
+BookingSchema.pre("validate", async function (next) {
+  if (this.bookingId) {
+    return next();
   }
-  next();
+
+  try {
+    // 4 random digits
+    const randomDigits = crypto.randomInt(1000, 10000);
+
+    // Sequential BOOK number
+    const counter = await BookingCounter.findOneAndUpdate(
+      { key: "BOOKING" },
+      { $inc: { sequence: 1 } },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+
+    const bookNumber = String(counter.sequence).padStart(3, "0");
+
+    this.bookingId = `BHPAR${randomDigits}BOOK${bookNumber}`;
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 BookingSchema.pre("save", async function (next) {

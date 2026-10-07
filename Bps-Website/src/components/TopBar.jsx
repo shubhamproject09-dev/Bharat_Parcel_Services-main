@@ -14,7 +14,7 @@ import {
   LocationOn as LocationIcon,
   Email as EmailIcon
 } from "@mui/icons-material";
-import logo from "../assets/Logo/logo2.png";
+import logo from "../assets/Logo/tlogo.png";
 
 function TopBar({ scrolling }) {
   const theme = useTheme();
@@ -39,7 +39,7 @@ function TopBar({ scrolling }) {
           justifyContent: "space-between",
           alignItems: "center",
           px: { xs: 1.5, sm: 3 },
-          py: { xs: 0.8, sm: 1 },
+          py: 0.5,
           // height: { xs: "50px", sm: "50px" },
           // minHeight: { xs: "50px !important", sm: "50px !important" },
           // '&.MuiToolbar-root': {
@@ -53,7 +53,7 @@ function TopBar({ scrolling }) {
           src={logo}
           alt="Company Logo"
           sx={{
-            height: { xs: "30px", sm: "38px" },
+            height: { xs: "30px", sm: "55px" },
             width: "auto",
             objectFit: "contain",
           }}
@@ -158,7 +158,7 @@ function TopBar({ scrolling }) {
                   whiteSpace: "nowrap",
                 }}
               >
-                info@bharatparcel.org
+                info@bharatparcel.cloud
               </Typography>
             </Box>
           )}

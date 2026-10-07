@@ -28,7 +28,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { useNavigate, useLocation } from "react-router-dom";
 import TopBar from "./TopBar";
-import logo from '../assets/Logo/logo2.png';
+import logo from '../assets/Logo/tlogo.png';
 
 const navLinks = [
   { to: "/", label: "Home", icon: <HomeIcon /> },
@@ -77,11 +77,11 @@ const PublicAppBar = () => {
       >
         <TopBar scrolling={scrolling} />
 
-        <Box sx={{ position: "relative" }}>
+        <Box sx={{ position: "relative", py: 0.5 }}>
           <Toolbar
             sx={{
               minHeight: "50px !important",
-              height: "50px",
+              height: "60px",
               px: { xs: 2, sm: 3, md: 4 },
               transition: "all 0.3s ease",
             }}
@@ -94,7 +94,7 @@ const PublicAppBar = () => {
                 alt="BPS Logo"
                 onClick={() => navigate("/")}
                 sx={{
-                  height: "35px",
+                  height: "60px",
                   width: "auto",
                   objectFit: "contain",
                   cursor: "pointer",
@@ -233,10 +233,10 @@ const PublicAppBar = () => {
             )}
           </Toolbar>
         </Box>
-      </AppBar>
+      </AppBar >
 
       {/* Mobile Drawer - Opens from below TopBar */}
-      <Drawer
+      < Drawer
         anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -260,7 +260,7 @@ const PublicAppBar = () => {
         }}
       >
         {/* Drawer Header */}
-        <Box sx={{
+        <Box Box sx={{
           p: 1,
           display: "flex",
           justifyContent: "space-between",
@@ -289,59 +289,61 @@ const PublicAppBar = () => {
               </Typography>
             </Box>
           </Box>
-        </Box>
+        </Box >
 
         {/* Navigation List - All items in BOLD */}
-        <List sx={{ p: 0 }}>
-          {navLinks.map((link, index) => {
-            const isActive = location.pathname === link.to;
-            return (
-              <React.Fragment key={link.label}>
-                <ListItem
-                  onClick={() => {
-                    navigate(link.to);
-                    setDrawerOpen(false);
-                  }}
-                  sx={{
-                    px: 2,
-                    py: 1,
-                    backgroundColor: isActive ? "#e3f2fd" : "transparent",
-                    borderLeft: isActive ? "4px solid #1565c0" : "4px solid transparent",
-                    "&:hover": {
-                      backgroundColor: "#f5f5f5",
-                    },
-                  }}
-                >
-                  <Box sx={{
-                    color: isActive ? "#1565c0" : "#666",
-                    mr: 2,
-                    display: "flex",
-                    alignItems: "center"
-                  }}>
-                    {link.icon}
-                  </Box>
-                  <ListItemText
-                    primary={
-                      <Typography
-                        fontWeight={700} // All items in BOLD
-                        color={isActive ? "#1565c0" : "#333"}
-                        fontSize="0.80rem"
-                      >
-                        {link.label}
-                      </Typography>
-                    }
-                  />
-                </ListItem>
-                {index < navLinks.length - 1 && (
-                  <Divider sx={{ my: 0.5 }} />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </List>
+        <List List sx={{ p: 0 }}>
+          {
+            navLinks.map((link, index) => {
+              const isActive = location.pathname === link.to;
+              return (
+                <React.Fragment key={link.label}>
+                  <ListItem
+                    onClick={() => {
+                      navigate(link.to);
+                      setDrawerOpen(false);
+                    }}
+                    sx={{
+                      px: 2,
+                      py: 1,
+                      backgroundColor: isActive ? "#e3f2fd" : "transparent",
+                      borderLeft: isActive ? "4px solid #1565c0" : "4px solid transparent",
+                      "&:hover": {
+                        backgroundColor: "#f5f5f5",
+                      },
+                    }}
+                  >
+                    <Box sx={{
+                      color: isActive ? "#1565c0" : "#666",
+                      mr: 2,
+                      display: "flex",
+                      alignItems: "center"
+                    }}>
+                      {link.icon}
+                    </Box>
+                    <ListItemText
+                      primary={
+                        <Typography
+                          fontWeight={700} // All items in BOLD
+                          color={isActive ? "#1565c0" : "#333"}
+                          fontSize="0.80rem"
+                        >
+                          {link.label}
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                  {index < navLinks.length - 1 && (
+                    <Divider sx={{ my: 0.5 }} />
+                  )}
+                </React.Fragment>
+              );
+            })
+          }
+        </List >
 
         {/* Drawer Footer */}
-        <Box sx={{
+        < Box sx={{
           mt: 'auto',
           p: 2,
           backgroundColor: '#f5f5f5',
@@ -358,8 +360,8 @@ const PublicAppBar = () => {
           >
             © 2026 BPS Logistics
           </Typography>
-        </Box>
-      </Drawer>
+        </Box >
+      </Drawer >
     </>
   );
 };

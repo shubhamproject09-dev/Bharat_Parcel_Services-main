@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { User } from "../model/user.model.js";
 import { generateAndCommitReceiptNo } from "../utils/generateReceiptNo.js";
 
@@ -229,6 +230,10 @@ quotationSchema.virtual("productTotal").get(function () {
   );
 });
 
+quotationSchema.index({ startStation: 1, createdAt: -1 });
+quotationSchema.index({ createdByUser: 1, createdAt: -1 });
+quotationSchema.index({ isDeleted: 1, startStation: 1, createdAt: -1 });
+
 // Virtual for total quantity
 quotationSchema.virtual("bookingRequestTotal").get(function () {
   return this.productDetails.reduce((acc, item) => acc + item.quantity, 0);
@@ -252,6 +257,22 @@ quotationSchema.virtual("computedTotalRevenue").get(function () {
   );
 });
 
+// Quotation booking number counter
+const QuotationCounterSchema = new mongoose.Schema({
+  key: {
+    type: String,
+    unique: true,
+  },
+  sequence: {
+    type: Number,
+    default: 0,
+  },
+});
+
+const QuotationCounter =
+  mongoose.models.QuotationCounter ||
+  mongoose.model("QuotationCounter", QuotationCounterSchema);
+
 quotationSchema.pre("save", async function (next) {
   if (!this.isNew) {
 
@@ -263,19 +284,23 @@ quotationSchema.pre("save", async function (next) {
        1️⃣ SAFE & UNIQUE BOOKING ID
     =============================== */
     if (!this.bookingId) {
-      let unique = false;
+      // 4 random digits: 1000 - 9999
+      const randomDigits = crypto.randomInt(1000, 10000);
 
-      while (!unique) {
-        const random = Math.floor(1000 + Math.random() * 9000);
-        const time = Date.now().toString().slice(-4);
-        const bookingId = `BHPAR${random}${time}QUOK`;
-
-        const exists = await mongoose.models.Quotation.findOne({ bookingId });
-        if (!exists) {
-          this.bookingId = bookingId;
-          unique = true;
+      // Sequential quotation number
+      const counter = await QuotationCounter.findOneAndUpdate(
+        { key: "QUOTATION" },
+        { $inc: { sequence: 1 } },
+        {
+          new: true,
+          upsert: true,
+          setDefaultsOnInsert: true,
         }
-      }
+      );
+
+      const quotationNumber = String(counter.sequence).padStart(3, "0");
+
+      this.bookingId = `BHPAR${randomDigits}QUOK${quotationNumber}`;
     }
 
     /* ===============================

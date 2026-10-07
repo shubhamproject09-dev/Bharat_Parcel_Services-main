@@ -41,6 +41,8 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import { useSelector, useDispatch } from "react-redux";
 import {
+  fetchQuotations,
+  fetchBookingRequestCount,
   fetchBookingRequest,
   fetchActiveBooking,
   fetchCancelledBooking,
@@ -161,7 +163,7 @@ const QuotationCard = () => {
   const [order, setOrder] = useState("desc");          // ✅ latest first
   const [orderBy, setOrderBy] = useState("biltyNo");
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedList, setSelectedList] = useState("request");
   const [openSnackbar, setOpenSnackbar] = useState(false);
@@ -171,8 +173,20 @@ const QuotationCard = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  const { list: bookingList = [], revenueList: revenueData = [], requestCount, activeDeliveriesCount, cancelledDeliveriesCount, totalRevenue, uploadedPdfUrl, pdfUploadLoading } =
-    useSelector((state) => state.quotations);
+  const {
+    list: bookingList = [],
+    revenueList: revenueData = [],
+    requestCount,
+    activeDeliveriesCount,
+    cancelledDeliveriesCount,
+    totalRevenue,
+    uploadedPdfUrl,
+    pdfUploadLoading,
+    quotationsList = [],
+    quotationPagination,
+    activeList = [],
+    cancelledList = [],
+  } = useSelector((state) => state.quotations);
   const [openPdfPreview, setOpenPdfPreview] = useState(false);
   const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
   const [openPdfSnackbar, setOpenPdfSnackbar] = useState(false);
@@ -202,7 +216,7 @@ const QuotationCard = () => {
   };
 
   useEffect(() => {
-    dispatch(fetchBookingRequest());
+    dispatch(fetchBookingRequestCount());
     dispatch(fetchDeletedQuotations());
     dispatch(fetchCancelledBooking());
     dispatch(fetchActiveBooking());
@@ -212,7 +226,13 @@ const QuotationCard = () => {
   useEffect(() => {
     switch (selectedList) {
       case "request":
-        dispatch(fetchBookingRequest());
+        dispatch(
+          fetchQuotations({
+            page: page + 1,
+            limit: rowsPerPage,
+            search: searchTerm.trim(),
+          })
+        );
         break;
       case "active":
         dispatch(fetchActiveBooking());
@@ -226,7 +246,7 @@ const QuotationCard = () => {
       default:
         break;
     }
-  }, [selectedList, dispatch]);
+  }, [dispatch, selectedList, page, rowsPerPage, searchTerm]);
 
   const handleAdd = () => {
     navigate("/quotationform");
@@ -407,7 +427,16 @@ const QuotationCard = () => {
     dispatch(clearViewedBooking());
   };
 
-  const dataSource = selectedList === "revenue" ? revenueData : bookingList;
+  const dataSource =
+    selectedList === "request"
+      ? quotationsList
+      : selectedList === "active"
+        ? activeList
+        : selectedList === "cancelled"
+          ? cancelledList
+          : selectedList === "revenue"
+            ? revenueData
+            : [];
 
   const matchText = (text, search) => {
     if (!text) return false;
@@ -420,30 +449,60 @@ const QuotationCard = () => {
     );
   };
 
-  const filteredRows = Array.isArray(dataSource)
-    ? dataSource.filter((row) => {
-      const q = searchTerm.trim().toLowerCase();
+  const filteredRows =
+    selectedList === "request"
+      ? quotationsList
+      : Array.isArray(dataSource)
+        ? dataSource.filter((row) => {
+          const q = searchTerm.trim().toLowerCase();
 
-      return (
-        matchText(row?.biltyNo, q) ||
-        matchText(row?.senderName || row?.fromCustomerName || row?.Name, q) ||
-        matchText(row?.receiverName || row?.["Name (Drop)"], q) ||
-        matchText(row?.pickup || row?.pickupCity, q) ||
-        matchText(row?.drop || row?.dropCity, q) ||
-        matchText(row?.bookingId || row?.["Booking ID"], q) ||
-        matchText(row?.quotationDate || row?.Date, q) ||
-        String(row?.contact || row?.Contact || "").includes(q)
-      );
-    })
-    : [];
+          return (
+            matchText(row?.biltyNo, q) ||
+            matchText(
+              row?.senderName ||
+              row?.fromCustomerName ||
+              row?.Name,
+              q
+            ) ||
+            matchText(
+              row?.receiverName ||
+              row?.["Name (Drop)"],
+              q
+            ) ||
+            matchText(
+              row?.pickup ||
+              row?.pickupCity,
+              q
+            ) ||
+            matchText(
+              row?.drop ||
+              row?.dropCity,
+              q
+            ) ||
+            matchText(
+              row?.bookingId ||
+              row?.["Booking ID"],
+              q
+            ) ||
+            matchText(
+              row?.quotationDate ||
+              row?.Date,
+              q
+            ) ||
+            String(
+              row?.contact ||
+              row?.Contact ||
+              ""
+            ).includes(q)
+          );
+        })
+        : [];
 
-  const emptyRows = Math.max(0, (1 + page) * rowsPerPage - filteredRows.length);
+  const emptyRows =
+    Math.max(0, rowsPerPage - filteredRows.length);
 
   const sortedData = stableSort(filteredRows, getComparator(order, orderBy));
-  const paginatedData = sortedData.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  const paginatedData = sortedData;
 
   const cardData = [
     {
@@ -921,9 +980,13 @@ const QuotationCard = () => {
             </TableBody>
           </Table>
           <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
+            rowsPerPageOptions={[50, 100, 150]}
             component="div"
-            count={filteredRows.length}
+            count={
+              selectedList === "request"
+                ? quotationPagination?.total || 0
+                : dataSource.length
+            }
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}

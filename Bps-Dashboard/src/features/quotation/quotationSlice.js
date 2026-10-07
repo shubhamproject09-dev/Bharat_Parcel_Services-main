@@ -18,6 +18,35 @@ export const createBooking = createAsyncThunk(
     }
   }
 )
+
+export const fetchQuotations = createAsyncThunk(
+  "quotation/fetchQuotations",
+  async ({ page = 1, limit = 50, search = "" }, thunkAPI) => {
+    try {
+      const res = await axios.get(
+        `${BASE_URL}?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      return res.data.data;
+
+    } catch (err) {
+      console.error(
+        "Error fetching quotations:",
+        err.response?.data?.message || err.message
+      );
+
+      return thunkAPI.rejectWithValue(
+        err.response?.data?.message || "Failed to fetch quotations"
+      );
+    }
+  }
+);
+
 // quotationsSlice.js
 export const deleteBooking = createAsyncThunk(
   'booking/deleteBooking',
@@ -61,9 +90,32 @@ export const restoreQuotation = createAsyncThunk(
   }
 );
 
+export const fetchBookingRequestCount = createAsyncThunk(
+  "booking/bookingRequestCount",
+  async (_, thunkApi) => {
+    try {
+      const res = await axios.get(
+        `${BASE_URL}/total-booking-requests`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      return res.data.data.totalBookingRequests;
+    } catch (error) {
+      return thunkApi.rejectWithValue(
+        error.response?.data?.message ||
+        "Failed to fetch booking request count"
+      );
+    }
+  }
+);
+
 //booking request.
 export const fetchBookingRequest = createAsyncThunk(
-  'booking/bookingRequestCount',
+  'booking/bookingRequest',
   async (_, thunkApi) => {
     try {
       const res = await axios.get(`${BASE_URL}/booking-request-list`);
@@ -313,6 +365,17 @@ const initialState = {
   list: [],
   list2: [],
   quotationsList: [],
+  quotations: [],
+  activeList: [],
+  cancelledList: [],
+  quotationPagination: {
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPrevPage: false,
+  },
   deletedQuotations: [],
   receiptPreview: "",
   requestCount: 0,
@@ -401,6 +464,47 @@ const quotationSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+
+      .addCase(fetchQuotations.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(fetchQuotations.fulfilled, (state, action) => {
+        state.loading = false;
+
+        state.quotationsList = action.payload?.data || [];
+
+        state.quotationPagination = action.payload?.pagination || {
+          total: 0,
+          page: 1,
+          limit: 50,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPrevPage: false,
+        };
+      })
+
+      .addCase(fetchQuotations.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      .addCase(fetchBookingRequestCount.fulfilled, (state, action) => {
+        state.requestCount =
+          typeof action.payload === "object"
+            ? (
+              action.payload?.totalBookingRequests ??
+              action.payload?.requestCount ??
+              0
+            )
+            : Number(action.payload) || 0;
+      })
+
+      .addCase(fetchBookingRequestCount.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+
       //for deleting
       .addCase(deleteBooking.fulfilled, (state, action) => {
         state.loading = false;
@@ -457,11 +561,11 @@ const quotationSlice = createSlice({
 
       .addCase(fetchActiveBooking.fulfilled, (state, action) => {
         state.activeDeliveriesCount = action.payload.activeDeliveries;
-        state.list = action.payload.deliveries;
+        state.activeList = action.payload.deliveries || [];
       })
       .addCase(fetchCancelledBooking.fulfilled, (state, action) => {
         state.cancelledDeliveriesCount = action.payload.cancelledCount;
-        state.list = action.payload.deliveries || [];
+        state.cancelledList = action.payload.deliveries || [];
       })
       //view booking
       .addCase(viewBookingById.pending, (state) => {
